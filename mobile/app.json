@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Fret CM-DE",
+    "slug": "fret-cm-de",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#1a56db"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a56db"
+      },
+      "package": "com.fretcmde.admin"
+    },
+    "ios": {
+      "bundleIdentifier": "com.fretcmde.admin"
+    },
+    "extra": {
+      "apiUrl": "https://your-backend.railway.app"
+    }
+  }
+}

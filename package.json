@@ -1,0 +1,10 @@
+{
+  "name": "fret-cm-de",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["backend", "mobile", "web"],
+  "scripts": {
+    "backend": "npm run dev --workspace=backend",
+    "web": "npm run dev --workspace=web"
+  }
+}
