@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 interface AuthContextType {
@@ -12,24 +13,40 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const TOKEN_KEY = 'jwt_token';
 
+// Abstraction store : SecureStore sur mobile, localStorage sur web
+const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (Platform.OS === 'web') return localStorage.getItem(key);
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (Platform.OS === 'web') { localStorage.setItem(key, value); return; }
+    return SecureStore.setItemAsync(key, value);
+  },
+  deleteItem: async (key: string): Promise<void> => {
+    if (Platform.OS === 'web') { localStorage.removeItem(key); return; }
+    return SecureStore.deleteItemAsync(key);
+  },
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    SecureStore.getItemAsync(TOKEN_KEY).then((stored) => {
+    storage.getItem(TOKEN_KEY).then((stored) => {
       if (stored) setToken(stored);
       setIsLoading(false);
     });
   }, []);
 
   const login = async (newToken: string) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, newToken);
+    await storage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
   };
 
   const logout = async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await storage.deleteItem(TOKEN_KEY);
     setToken(null);
   };
 
