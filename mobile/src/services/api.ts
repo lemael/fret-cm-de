@@ -38,6 +38,7 @@ export const authAPI = {
 
 export const clientsAPI = {
   list: () => api.get('/api/clients'),
+  overview: () => api.get('/api/clients/overview'),
   detail: (id: string) => api.get(`/api/clients/${id}`),
   create: (phone: string, name?: string) =>
     api.post('/api/clients', { phone, name }),

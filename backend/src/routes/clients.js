@@ -4,6 +4,60 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
+// GET /api/clients/overview — données agrégées pour le dashboard admin
+router.get('/overview', auth, async (_req, res) => {
+  try {
+    const [clientsResult, scheduleResult, awaitingDeliveryResult, shipmentRequestsResult, recurringQuestionsResult] = await Promise.all([
+      pool.query('SELECT * FROM clients ORDER BY created_at DESC'),
+      pool.query(
+        `SELECT s.id, s.category, s.status, s.raw_message, s.created_at,
+                c.id AS client_id, c.name, c.phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.category = 'SCHEDULE'
+         ORDER BY s.created_at DESC`
+      ),
+      pool.query(
+        `SELECT s.id, s.category, s.status, s.raw_message, s.created_at,
+                c.id AS client_id, c.name, c.phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.category = 'SHIPMENT'
+           AND s.status NOT IN ('EN_ATTENTE', 'LIVRE')
+         ORDER BY s.updated_at DESC`
+      ),
+      pool.query(
+        `SELECT s.id, s.category, s.status, s.raw_message, s.created_at,
+                c.id AS client_id, c.name, c.phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.category = 'SHIPMENT'
+           AND s.status = 'EN_ATTENTE'
+         ORDER BY s.created_at DESC`
+      ),
+      pool.query(
+        `SELECT s.id, s.category, s.status, s.raw_message, s.created_at,
+                c.id AS client_id, c.name, c.phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.category IN ('ARRIVAL', 'CLAIM', 'CUSTOMS', 'SCHEDULE', 'UNKNOWN')
+         ORDER BY s.created_at DESC`
+      ),
+    ]);
+
+    res.json({
+      clients: clientsResult.rows,
+      transportSchedule: scheduleResult.rows,
+      awaitingDelivery: awaitingDeliveryResult.rows,
+      shipmentRequests: shipmentRequestsResult.rows,
+      recurringQuestions: recurringQuestionsResult.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // GET /api/clients
 router.get('/', auth, async (req, res) => {
   try {
