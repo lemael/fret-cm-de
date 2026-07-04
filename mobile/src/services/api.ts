@@ -19,6 +19,8 @@ api.interceptors.request.use(async (config) => {
 export const authAPI = {
   login: (username: string, password: string) =>
     api.post<{ token: string }>('/api/auth/login', { username, password }),
+  resetPassword: (username: string, newPassword: string) =>
+    api.post('/api/auth/reset-password', { username, newPassword }),
 };
 
 export const clientsAPI = {

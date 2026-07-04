@@ -20,6 +20,9 @@
     },
     "extra": {
       "apiUrl": "https://your-backend.railway.app"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

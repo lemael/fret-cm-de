@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  View,
   Text,
   TextInput,
   TouchableOpacity,
@@ -10,10 +9,16 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
+import { RootStackParamList } from '../navigation/AppNavigator';
+
+type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export default function LoginScreen() {
+  const navigation = useNavigation<Nav>();
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -72,6 +77,13 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>Se connecter</Text>
         )}
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.resetLink}
+        onPress={() => navigation.navigate('ResetPassword')}
+      >
+        <Text style={styles.resetLinkText}>Modifier le mot de passe admin</Text>
+      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
@@ -112,4 +124,13 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.7 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  resetLink: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  resetLinkText: {
+    color: '#dbeafe',
+    textDecorationLine: 'underline',
+    fontSize: 14,
+  },
 });

@@ -4,12 +4,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import ParseMessageScreen from '../screens/ParseMessageScreen';
 import ClientDetailScreen from '../screens/ClientDetailScreen';
 
 export type RootStackParamList = {
   Login: undefined;
+  ResetPassword: undefined;
   Dashboard: undefined;
   ParseMessage: { clientId?: string; phone?: string };
   ClientDetail: { clientId: string };
@@ -56,11 +58,18 @@ export default function AppNavigator() {
             />
           </>
         ) : (
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ResetPassword"
+              component={ResetPasswordScreen}
+              options={{ title: 'Modifier le mot de passe' }}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

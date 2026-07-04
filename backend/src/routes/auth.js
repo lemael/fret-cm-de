@@ -41,4 +41,38 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/reset-password
+// Permet de changer le mot de passe uniquement si le username admin est connu.
+router.post('/reset-password', async (req, res) => {
+  const { username, newPassword } = req.body;
+  if (!username || !newPassword) {
+    return res.status(400).json({ error: 'Champs manquants' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+  }
+
+  try {
+    const adminResult = await pool.query(
+      'SELECT id FROM admins WHERE username = $1',
+      [username]
+    );
+    const admin = adminResult.rows[0];
+    if (!admin) {
+      return res.status(403).json({ error: 'Username admin invalide' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query(
+      'UPDATE admins SET password_hash = $1 WHERE id = $2',
+      [passwordHash, admin.id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;
