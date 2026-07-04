@@ -12,6 +12,20 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { shipmentsAPI } from '../services/api';
 
+const CLIENT_WEB_BASE_URL = 'https://ravishing-endurance-production-7ff1.up.railway.app';
+
+const normalizeStatusLink = (link: string): string => {
+  try {
+    const parsed = new URL(link);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const token = parts[parts.length - 1];
+    if (!token) return link;
+    return `${CLIENT_WEB_BASE_URL}/status/${token}`;
+  } catch {
+    return link;
+  }
+};
+
 const CATEGORY_LABELS: Record<string, string> = {
   ARRIVAL: "📦 Suivi d'arrivée",
   CLAIM: '⚠️ Réclamation',
@@ -49,7 +63,7 @@ export default function ParseMessageScreen() {
       );
       setResult({
         category: res.data.shipment.category,
-        statusLink: res.data.statusLink,
+        statusLink: normalizeStatusLink(res.data.statusLink),
         clientName: res.data.client.name,
       });
     } catch {

@@ -32,7 +32,7 @@ router.post('/parse', auth, async (req, res) => {
       [client.id, category, 'EN_ATTENTE', trackingToken, rawMessage]
     );
 
-    const baseUrl = process.env.WEB_URL || 'https://votre-fret.vercel.app';
+    const baseUrl = process.env.WEB_URL || 'https://ravishing-endurance-production-7ff1.up.railway.app';
     res.status(201).json({
       client,
       shipment: shipmentResult.rows[0],

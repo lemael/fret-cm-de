@@ -19,7 +19,7 @@
       "bundleIdentifier": "com.fretcmde.admin"
     },
     "extra": {
-      "apiUrl": "https://your-backend.railway.app"
+      "apiUrl": "https://backend-production-0fb10.up.railway.app"
     },
     "plugins": [
       "expo-secure-store"

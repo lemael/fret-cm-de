@@ -173,7 +173,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
   }
 
   const apiUrl =
-    process.env.NEXT_PUBLIC_API_URL ?? 'https://your-backend.railway.app';
+    process.env.API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    'https://backend-production-0fb10.up.railway.app';
 
   try {
     const res = await fetch(`${apiUrl}/api/status/${encodeURIComponent(token)}`);

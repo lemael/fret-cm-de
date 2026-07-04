@@ -5,9 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import axios from 'axios';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { authAPI } from '../services/api';
@@ -21,38 +21,67 @@ export default function ResetPasswordScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleReset = async () => {
+    setErrorMessage(null);
+
     if (!username.trim() || !newPassword || !confirmPassword) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+      setErrorMessage('Veuillez remplir tous les champs.');
       return;
     }
 
     if (newPassword.length < 8) {
-      Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 8 caractères');
+      setErrorMessage('Le mot de passe doit contenir au moins 8 caractères.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
+      setErrorMessage('Les mots de passe ne correspondent pas.');
       return;
     }
 
     setLoading(true);
     try {
       await authAPI.resetPassword(username.trim(), newPassword);
-      Alert.alert('Succès', 'Mot de passe mis à jour avec succès', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch {
-      Alert.alert(
-        'Échec',
-        'Impossible de modifier le mot de passe. Vérifiez le username admin.'
-      );
+      setIsSuccess(true);
+    } catch (error: unknown) {
+      const statusCode = axios.isAxiosError(error) ? error.response?.status : undefined;
+      const backendMessage =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === 'string'
+          ? error.response.data.error
+          : null;
+
+      if (statusCode === 403 || backendMessage === 'Username admin invalide') {
+        setErrorMessage('Username admin incorrect.');
+      } else {
+        setErrorMessage(backendMessage ?? 'Impossible de modifier le mot de passe.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  if (isSuccess) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.successCard}>
+          <Text style={styles.successTitle}>Mot de passe modifié avec succès</Text>
+          <Text style={styles.successText}>
+            Le mot de passe admin a été mis à jour. Vous pouvez maintenant vous connecter avec le nouveau mot de passe.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.buttonText}>Retourner à la page de connexion</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -66,7 +95,10 @@ export default function ResetPasswordScreen() {
         placeholder="Username admin"
         placeholderTextColor="#94a3b8"
         value={username}
-        onChangeText={setUsername}
+        onChangeText={(value) => {
+          setUsername(value);
+          if (errorMessage) setErrorMessage(null);
+        }}
         autoCapitalize="none"
         autoCorrect={false}
       />
@@ -76,7 +108,10 @@ export default function ResetPasswordScreen() {
         placeholder="Nouveau mot de passe"
         placeholderTextColor="#94a3b8"
         value={newPassword}
-        onChangeText={setNewPassword}
+        onChangeText={(value) => {
+          setNewPassword(value);
+          if (errorMessage) setErrorMessage(null);
+        }}
         secureTextEntry
       />
 
@@ -85,9 +120,18 @@ export default function ResetPasswordScreen() {
         placeholder="Confirmer le mot de passe"
         placeholderTextColor="#94a3b8"
         value={confirmPassword}
-        onChangeText={setConfirmPassword}
+        onChangeText={(value) => {
+          setConfirmPassword(value);
+          if (errorMessage) setErrorMessage(null);
+        }}
         secureTextEntry
       />
+
+      {errorMessage ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
+      ) : null}
 
       <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
@@ -122,6 +166,26 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 24,
   },
+  successCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 10,
+  },
+  successText: {
+    fontSize: 15,
+    color: '#374151',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
   input: {
     backgroundColor: '#fff',
     borderRadius: 10,
@@ -130,6 +194,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     marginBottom: 14,
+  },
+  errorBox: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fca5a5',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+  errorText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '500',
   },
   button: {
     marginTop: 10,
