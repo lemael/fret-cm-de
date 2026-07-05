@@ -171,10 +171,23 @@ router.put('/workflow-state', auth, async (req, res) => {
 // GET /api/clients/overview — données agrégées pour le dashboard admin
 router.get('/overview', auth, async (_req, res) => {
   try {
+    const columnsResult = await pool.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_name = 'shipments'
+         AND column_name IN ('phase', 'departure_date')`
+    );
+
+    const availableColumns = new Set(columnsResult.rows.map((row) => row.column_name));
+    const phaseSelect = availableColumns.has('phase') ? 's.phase' : 'NULL::varchar AS phase';
+    const departureDateSelect = availableColumns.has('departure_date')
+      ? 's.departure_date'
+      : 'NULL::date AS departure_date';
+
     const [clientsResult, shipmentsResult] = await Promise.all([
       pool.query('SELECT * FROM clients ORDER BY created_at DESC'),
       pool.query(
-        `SELECT s.id, s.client_id, s.phase, s.category, s.status, s.departure_date, s.raw_message, s.created_at,
+        `SELECT s.id, s.client_id, ${phaseSelect}, s.category, s.status, ${departureDateSelect}, s.raw_message, s.created_at,
                 c.name, c.phone
          FROM shipments s
          JOIN clients c ON c.id = s.client_id
