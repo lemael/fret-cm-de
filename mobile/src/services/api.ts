@@ -39,6 +39,12 @@ export const authAPI = {
 export const clientsAPI = {
   list: () => api.get('/api/clients'),
   overview: () => api.get('/api/clients/overview'),
+  workflowState: () => api.get('/api/clients/workflow-state'),
+  updateWorkflowState: (payload: {
+    isTransitStarted: boolean;
+    activePhase: 'loading' | 'atSea' | 'distribution';
+    departureDate: string | null;
+  }) => api.put('/api/clients/workflow-state', payload),
   detail: (id: string) => api.get(`/api/clients/${id}`),
   create: (phone: string, name?: string) =>
     api.post('/api/clients', { phone, name }),

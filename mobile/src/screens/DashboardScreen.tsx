@@ -1,14 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
   RefreshControl,
   ScrollView,
-  ListRenderItem,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -26,102 +25,201 @@ type Client = {
 type ShipmentItem = {
   id: string;
   client_id: string;
-  name: string | null;
-  phone: string;
+  phase: 'LOADING' | 'AT_SEA' | 'DISTRIBUTION';
   category: string;
   status: string;
+  departure_date: string | null;
   raw_message: string | null;
   created_at: string;
+  name: string | null;
+  phone: string;
 };
 
 type DashboardOverview = {
   clients: Client[];
-  transportSchedule: ShipmentItem[];
-  awaitingDelivery: ShipmentItem[];
-  shipmentRequests: ShipmentItem[];
-  recurringQuestions: ShipmentItem[];
+  phases: {
+    loading: {
+      nextDepartureDate: string | null;
+      tabs: {
+        readyToDepart: ShipmentItem[];
+        pendingNotReady: ShipmentItem[];
+        claims: ShipmentItem[];
+      };
+    };
+    atSea: {
+      tabs: {
+        tracking: ShipmentItem[];
+        claims: ShipmentItem[];
+      };
+    };
+    distribution: {
+      tabs: {
+        delivered: ShipmentItem[];
+        pendingNotDelivered: ShipmentItem[];
+        claims: ShipmentItem[];
+      };
+    };
+  };
 };
 
+type PhaseKey = 'loading' | 'atSea' | 'distribution';
 type TabKey =
-  | 'clients'
-  | 'transportSchedule'
-  | 'awaitingDelivery'
-  | 'shipmentRequests'
-  | 'recurringQuestions';
-
-const TAB_LABELS: Record<TabKey, string> = {
-  clients: 'Clients enregistres',
-  transportSchedule: 'Calendrier transport',
-  awaitingDelivery: 'Colis en attente',
-  shipmentRequests: 'Demandes d\'envoi',
-  recurringQuestions: 'Questions recurrentes',
-};
-
-const TAB_ORDER: TabKey[] = [
-  'clients',
-  'transportSchedule',
-  'awaitingDelivery',
-  'shipmentRequests',
-  'recurringQuestions',
-];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  ARRIVAL: 'Suivi arrivee',
-  CLAIM: 'Reclamation',
-  SHIPMENT: 'Envoi',
-  SCHEDULE: 'Calendrier',
-  CUSTOMS: 'Douane',
-  UNKNOWN: 'Question diverse',
-};
+  | 'readyToDepart'
+  | 'pendingNotReady'
+  | 'claims'
+  | 'tracking'
+  | 'delivered'
+  | 'pendingNotDelivered';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
-const TAB_DESCRIPTIONS: Record<TabKey, string> = {
-  clients: 'Retrouvez la fiche d\'un client et ouvrez son detail en un geste.',
-  transportSchedule: 'Messages lies au calendrier de depart et d\'arrivee.',
-  awaitingDelivery: 'Colis deja recenses qui attendent une remise au client.',
-  shipmentRequests: 'Demandes d\'expedition a traiter par priorite.',
-  recurringQuestions: 'Questions recurrentes a surveiller pour enrichir votre FAQ.',
+type WorkflowState = {
+  isTransitStarted: boolean;
+  activePhase: PhaseKey;
+  departureDate: string | null;
 };
 
-const TAB_MICROCOPY: Record<TabKey, string> = {
-  clients: 'Base clients et historique',
-  transportSchedule: 'Dates et previsions logistiques',
-  awaitingDelivery: 'Dossiers proches de la remise',
-  shipmentRequests: 'Nouveaux envois a qualifier',
-  recurringQuestions: 'Messages repetes a capitaliser',
+const PHASE_LABELS: Record<PhaseKey, string> = {
+  loading: 'Chargement',
+  atSea: 'En mer',
+  distribution: 'Distribution',
 };
 
-const EMPTY_TIPS: Record<TabKey, string> = {
-  clients: 'Les nouveaux clients apparaitront ici apres l\'analyse d\'un message ou la creation d\'un dossier.',
-  transportSchedule: 'Cette file se remplira quand les clients poseront des questions sur les departs ou arrivees.',
-  awaitingDelivery: 'Cette zone vous aide a suivre les colis a remettre rapidement au client.',
-  shipmentRequests: 'Analysez un nouveau message pour transformer une demande en dossier exploitable.',
-  recurringQuestions: 'Quand plusieurs messages se ressemblent, cette file vous aide a repeter moins et repondre mieux.',
+const PHASE_ACCENTS: Record<PhaseKey, { bg: string; soft: string }> = {
+  loading: { bg: '#0f4c5c', soft: '#d7eef3' },
+  atSea: { bg: '#1f4f8a', soft: '#dce9fb' },
+  distribution: { bg: '#7d4b1a', soft: '#f7e7d4' },
 };
 
-const TAB_ACTION_COPY: Record<TabKey, string> = {
-  clients: 'Explorer les fiches clients',
-  transportSchedule: 'Verifier les demandes calendrier',
-  awaitingDelivery: 'Traiter les remises prioritaires',
-  shipmentRequests: 'Qualifier les nouveaux envois',
-  recurringQuestions: 'Identifier les questions a standardiser',
+const PHASE_TABS: Record<PhaseKey, TabKey[]> = {
+  loading: ['readyToDepart', 'pendingNotReady', 'claims'],
+  atSea: ['tracking', 'claims'],
+  distribution: ['delivered', 'pendingNotDelivered', 'claims'],
 };
 
-const TAB_ACCENTS: Record<TabKey, { bg: string; soft: string; text: string }> = {
-  clients: { bg: '#123524', soft: '#d8f0e2', text: '#123524' },
-  transportSchedule: { bg: '#0f4c5c', soft: '#d9f1f4', text: '#0f4c5c' },
-  awaitingDelivery: { bg: '#a44a3f', soft: '#fde2dc', text: '#7b241c' },
-  shipmentRequests: { bg: '#8a5a12', soft: '#f8e7bf', text: '#7c4a03' },
-  recurringQuestions: { bg: '#5f3dc4', soft: '#e8e1ff', text: '#4527a0' },
+const TAB_LABELS: Record<TabKey, string> = {
+  readyToDepart: 'Colis prets a partir',
+  pendingNotReady: 'Colis en attente (pas prets)',
+  claims: 'Reclamation',
+  tracking: 'Tracking',
+  delivered: 'Colis deja distribues',
+  pendingNotDelivered: 'Colis en attente (pas distribues)',
 };
 
-const formatDate = (value: string) => {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
+const TAB_HINTS: Record<TabKey, string> = {
+  readyToDepart: 'Dossiers confirms et prets pour le depart.',
+  pendingNotReady: 'Dossiers a preparer avant expedition.',
+  claims: 'Incidents et problemes clients a traiter.',
+  tracking: 'Suivi des colis actuellement en transit maritime.',
+  delivered: 'Historique des colis livres aux clients.',
+  pendingNotDelivered: 'Colis arrives mais pas encore remis.',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  EN_ATTENTE_CHARGEMENT: 'En attente chargement',
+  PRET_A_PARTIR: 'Pret a partir',
+  EN_MER: 'En mer',
+  TRACKING_EN_COURS: 'Tracking en cours',
+  EN_DISTRIBUTION: 'En distribution',
+  EN_ATTENTE_DISTRIBUTION: 'En attente distribution',
+  DISTRIBUE: 'Distribue',
+  LIVRE: 'Livre',
+};
+
+const createEmptyOverview = (): DashboardOverview => ({
+  clients: [],
+  phases: {
+    loading: {
+      nextDepartureDate: null,
+      tabs: {
+        readyToDepart: [],
+        pendingNotReady: [],
+        claims: [],
+      },
+    },
+    atSea: {
+      tabs: {
+        tracking: [],
+        claims: [],
+      },
+    },
+    distribution: {
+      tabs: {
+        delivered: [],
+        pendingNotDelivered: [],
+        claims: [],
+      },
+    },
+  },
+});
+
+const normalizeOverview = (payload: any): DashboardOverview => {
+  const empty = createEmptyOverview();
+  if (!payload || typeof payload !== 'object') {
+    return empty;
   }
 
+  if (payload.phases) {
+    return {
+      clients: Array.isArray(payload.clients) ? payload.clients : [],
+      phases: {
+        loading: {
+          nextDepartureDate: payload.phases.loading?.nextDepartureDate || null,
+          tabs: {
+            readyToDepart: payload.phases.loading?.tabs?.readyToDepart || [],
+            pendingNotReady: payload.phases.loading?.tabs?.pendingNotReady || [],
+            claims: payload.phases.loading?.tabs?.claims || [],
+          },
+        },
+        atSea: {
+          tabs: {
+            tracking: payload.phases.atSea?.tabs?.tracking || [],
+            claims: payload.phases.atSea?.tabs?.claims || [],
+          },
+        },
+        distribution: {
+          tabs: {
+            delivered: payload.phases.distribution?.tabs?.delivered || [],
+            pendingNotDelivered: payload.phases.distribution?.tabs?.pendingNotDelivered || [],
+            claims: payload.phases.distribution?.tabs?.claims || [],
+          },
+        },
+      },
+    };
+  }
+
+  return {
+    clients: Array.isArray(payload.clients) ? payload.clients : [],
+    phases: {
+      loading: {
+        nextDepartureDate: null,
+        tabs: {
+          readyToDepart: [],
+          pendingNotReady: Array.isArray(payload.shipmentRequests) ? payload.shipmentRequests : [],
+          claims: [],
+        },
+      },
+      atSea: {
+        tabs: {
+          tracking: Array.isArray(payload.transportSchedule) ? payload.transportSchedule : [],
+          claims: [],
+        },
+      },
+      distribution: {
+        tabs: {
+          delivered: [],
+          pendingNotDelivered: Array.isArray(payload.awaitingDelivery) ? payload.awaitingDelivery : [],
+          claims: Array.isArray(payload.recurringQuestions) ? payload.recurringQuestions : [],
+        },
+      },
+    },
+  };
+};
+
+const formatDate = (value: string | null) => {
+  if (!value) return 'Non renseignee';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString('fr-FR', {
     day: '2-digit',
     month: 'short',
@@ -129,28 +227,71 @@ const formatDate = (value: string) => {
   });
 };
 
+const normalizeStatus = (status: string) => STATUS_LABELS[status] || status.replaceAll('_', ' ');
+
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { logout } = useAuth();
-  const [overview, setOverview] = useState<DashboardOverview>({
-    clients: [],
-    transportSchedule: [],
-    awaitingDelivery: [],
-    shipmentRequests: [],
-    recurringQuestions: [],
-  });
+
+  const [overview, setOverview] = useState<DashboardOverview>(createEmptyOverview);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activePhase, setActivePhase] = useState<PhaseKey>('loading');
+  const [activeTab, setActiveTab] = useState<TabKey>('readyToDepart');
+  const [isTransitStarted, setIsTransitStarted] = useState(false);
+  const [isStartFormVisible, setIsStartFormVisible] = useState(false);
+  const [departureDateInput, setDepartureDateInput] = useState('');
+  const [workflowDepartureDate, setWorkflowDepartureDate] = useState<string | null>(null);
+
+  const persistWorkflowState = useCallback(async (state: WorkflowState) => {
+    try {
+      await clientsAPI.updateWorkflowState(state);
+    } catch {
+      // On conserve le comportement local meme si la persistance echoue ponctuellement.
+    }
+  }, []);
 
   const fetchOverview = useCallback(async () => {
     try {
-      const res = await clientsAPI.overview();
-      setOverview(res.data);
+      const [overviewRes, workflowRes] = await Promise.allSettled([
+        clientsAPI.overview(),
+        clientsAPI.workflowState(),
+      ]);
+
+      if (overviewRes.status !== 'fulfilled') {
+        throw new Error('overview-failed');
+      }
+
+      setOverview(normalizeOverview(overviewRes.value.data));
+
+      const fallbackWorkflow: WorkflowState = {
+        isTransitStarted: false,
+        activePhase: 'loading',
+        departureDate: null,
+      };
+
+      const workflow =
+        workflowRes.status === 'fulfilled'
+          ? (workflowRes.value.data as WorkflowState)
+          : fallbackWorkflow;
+
+      let restoredPhase: PhaseKey = 'loading';
+      if (workflow.activePhase === 'atSea') {
+        restoredPhase = 'atSea';
+      } else if (workflow.activePhase === 'distribution') {
+        restoredPhase = 'distribution';
+      }
+
+      setIsTransitStarted(Boolean(workflow.isTransitStarted));
+      setWorkflowDepartureDate(workflow.departureDate || null);
+      setActivePhase(restoredPhase);
+      setActiveTab(PHASE_TABS[restoredPhase][0]);
+      setIsStartFormVisible(false);
+      setDepartureDateInput('');
       setErrorMessage(null);
     } catch {
-      setErrorMessage('Impossible de charger le tableau de bord pour le moment. Verifiez la connexion puis reessayez.');
+      setErrorMessage('Impossible de charger les files de travail. Verifiez la connexion puis reessayez.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -166,283 +307,245 @@ export default function DashboardScreen() {
     fetchOverview();
   };
 
-  const tabCounts: Record<TabKey, number> = {
-    clients: overview.clients.length,
-    transportSchedule: overview.transportSchedule.length,
-    awaitingDelivery: overview.awaitingDelivery.length,
-    shipmentRequests: overview.shipmentRequests.length,
-    recurringQuestions: overview.recurringQuestions.length,
+  const onSelectPhase = (phase: PhaseKey) => {
+    setActivePhase(phase);
+    setActiveTab(PHASE_TABS[phase][0]);
   };
 
-  const totalRequests =
-    tabCounts.transportSchedule +
-    tabCounts.awaitingDelivery +
-    tabCounts.shipmentRequests +
-    tabCounts.recurringQuestions;
+  const handleOpenStartTransit = () => {
+    setIsStartFormVisible(true);
+  };
 
-  const deliveryPressure = tabCounts.awaitingDelivery + tabCounts.shipmentRequests;
+  const handleStartTransit = () => {
+    if (!departureDateInput.trim()) {
+      return;
+    }
 
-  const focusQueue =
-    ([
-      'shipmentRequests',
-      'awaitingDelivery',
-      'transportSchedule',
-      'recurringQuestions',
-    ] as TabKey[]).reduce<TabKey>(
-      (leader, current) => (tabCounts[current] > tabCounts[leader] ? current : leader),
-      'shipmentRequests'
-    );
+    const date = departureDateInput.trim();
 
-  const highlightedTab =
-    (Object.entries(tabCounts) as Array<[TabKey, number]>).reduce<TabKey>(
-      (leader, current) => (current[1] > tabCounts[leader] ? current[0] : leader),
-      'clients'
-    );
+    setWorkflowDepartureDate(date);
+    setIsTransitStarted(true);
+    setIsStartFormVisible(false);
+    onSelectPhase('loading');
+    void persistWorkflowState({
+      isTransitStarted: true,
+      activePhase: 'loading',
+      departureDate: date,
+    });
+  };
 
-  const currentAccent = activeTab ? TAB_ACCENTS[activeTab] : TAB_ACCENTS[highlightedTab];
-  const activeCount = activeTab ? tabCounts[activeTab] : 0;
-  let operationsStatus = 'Suivi actif';
-  let operationsMessage = 'Le back-office tourne normalement. Continuez le tri par file de travail pour garder une vue claire.';
+  const handleCancelStartTransit = () => {
+    setIsStartFormVisible(false);
+    setDepartureDateInput('');
+  };
 
-  if (totalRequests === 0) {
-    operationsStatus = 'Flux calme';
-    operationsMessage = 'Aucune demande en attente. Profitez-en pour analyser les nouveaux messages entrants.';
-  } else if (deliveryPressure >= 6) {
-    operationsStatus = 'Priorites elevees';
-    operationsMessage = 'Les remises et nouveaux envois demandent une action rapide. Ouvrez la file recommandee en priorite.';
-  }
+  const handleFinishCurrentPhase = () => {
+    if (activePhase === 'loading') {
+      onSelectPhase('atSea');
+      void persistWorkflowState({
+        isTransitStarted: true,
+        activePhase: 'atSea',
+        departureDate: workflowDepartureDate,
+      });
+      return;
+    }
 
-  const nextActionLabel =
-    tabCounts[focusQueue] > 0 ? TAB_ACTION_COPY[focusQueue] : 'Analyser un nouveau message';
+    if (activePhase === 'atSea') {
+      onSelectPhase('distribution');
+      void persistWorkflowState({
+        isTransitStarted: true,
+        activePhase: 'distribution',
+        departureDate: workflowDepartureDate,
+      });
+      return;
+    }
 
-  const renderClientCard = (item: Client) => (
-    <TouchableOpacity
-      style={[styles.card, styles.clientCard]}
-      onPress={() => navigation.navigate('ClientDetail', { clientId: item.id })}
-    >
-      <View style={styles.cardTopRow}>
-        <View style={styles.clientAvatar}>
-          <Text style={styles.clientAvatarText}>
-            {(item.name || item.phone).slice(0, 2).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.cardTextColumn}>
-          <Text style={styles.cardEyebrow}>Client</Text>
-          <Text style={styles.cardName}>{item.name || 'Client inconnu'}</Text>
-          <Text style={styles.cardPhone}>{item.phone}</Text>
-        </View>
-      </View>
-      <Text style={styles.cardFooter}>Ajoute le {formatDate(item.created_at)}</Text>
-      <Text style={styles.cardLink}>Ouvrir la fiche client</Text>
-    </TouchableOpacity>
+    setIsTransitStarted(false);
+    setIsStartFormVisible(false);
+    setDepartureDateInput('');
+    setWorkflowDepartureDate(null);
+    onSelectPhase('loading');
+    void persistWorkflowState({
+      isTransitStarted: false,
+      activePhase: 'loading',
+      departureDate: null,
+    });
+  };
+
+  const handleReturnPreviousPhase = () => {
+    if (activePhase === 'atSea') {
+      onSelectPhase('loading');
+      void persistWorkflowState({
+        isTransitStarted: true,
+        activePhase: 'loading',
+        departureDate: workflowDepartureDate,
+      });
+      return;
+    }
+
+    if (activePhase === 'distribution') {
+      onSelectPhase('atSea');
+      void persistWorkflowState({
+        isTransitStarted: true,
+        activePhase: 'atSea',
+        departureDate: workflowDepartureDate,
+      });
+    }
+  };
+
+  const getClaimsData = (): ShipmentItem[] => {
+    if (activePhase === 'loading') {
+      return overview.phases.loading.tabs.claims;
+    }
+    if (activePhase === 'atSea') {
+      return overview.phases.atSea.tabs.claims;
+    }
+    return overview.phases.distribution.tabs.claims;
+  };
+
+  const tabDataMap = useMemo<Record<TabKey, ShipmentItem[]>>(
+    () => ({
+      readyToDepart: overview.phases.loading.tabs.readyToDepart,
+      pendingNotReady: overview.phases.loading.tabs.pendingNotReady,
+      claims: getClaimsData(),
+      tracking: overview.phases.atSea.tabs.tracking,
+      delivered: overview.phases.distribution.tabs.delivered,
+      pendingNotDelivered: overview.phases.distribution.tabs.pendingNotDelivered,
+    }),
+    [overview, activePhase]
   );
 
-  const renderShipmentCard = (item: ShipmentItem, showStatus: boolean) => (
+  const activeTabs = PHASE_TABS[activePhase];
+  const activeItems = tabDataMap[activeTab] || [];
+  const canReturnPrevious = activePhase === 'atSea' || activePhase === 'distribution';
+  const phaseProgress: PhaseKey[] = ['loading', 'atSea', 'distribution'];
+
+  const totals = useMemo(() => {
+    const loadingTotal =
+      overview.phases.loading.tabs.readyToDepart.length +
+      overview.phases.loading.tabs.pendingNotReady.length +
+      overview.phases.loading.tabs.claims.length;
+
+    const atSeaTotal =
+      overview.phases.atSea.tabs.tracking.length +
+      overview.phases.atSea.tabs.claims.length;
+
+    const distributionTotal =
+      overview.phases.distribution.tabs.delivered.length +
+      overview.phases.distribution.tabs.pendingNotDelivered.length +
+      overview.phases.distribution.tabs.claims.length;
+
+    return {
+      clients: overview.clients.length,
+      loading: loadingTotal,
+      atSea: atSeaTotal,
+      distribution: distributionTotal,
+      global: loadingTotal + atSeaTotal + distributionTotal,
+    };
+  }, [overview]);
+
+  const renderShipmentCard = (item: ShipmentItem) => (
     <TouchableOpacity
+      key={item.id}
       style={styles.card}
       onPress={() => navigation.navigate('ClientDetail', { clientId: item.client_id })}
     >
       <View style={styles.cardTopRow}>
-        <View style={styles.cardTextColumn}>
-          <Text style={styles.cardEyebrow}>Dossier actif</Text>
-          <Text style={styles.cardName}>{item.name || 'Client inconnu'}</Text>
+        <View style={styles.cardTextBlock}>
+          <Text style={styles.cardClientName}>{item.name || 'Client inconnu'}</Text>
           <Text style={styles.cardPhone}>{item.phone}</Text>
         </View>
-        <Text style={styles.categoryBadge}>{CATEGORY_LABELS[item.category] || item.category}</Text>
+        <Text style={styles.cardStatus}>{normalizeStatus(item.status)}</Text>
       </View>
-      {showStatus ? (
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Statut</Text>
-          <Text style={styles.metaText}>{item.status.replaceAll('_', ' ')}</Text>
-        </View>
+
+      {activePhase === 'loading' ? (
+        <Text style={styles.cardInfo}>Date de depart: {formatDate(item.departure_date)}</Text>
       ) : null}
+
       {item.raw_message ? (
-        <Text style={styles.messagePreview} numberOfLines={2}>{item.raw_message}</Text>
+        <Text style={styles.cardMessage} numberOfLines={2}>{item.raw_message}</Text>
       ) : null}
-      <Text style={styles.cardFooter}>Recu le {formatDate(item.created_at)}</Text>
-      <Text style={styles.cardLink}>Voir le dossier client</Text>
+
+      <Text style={styles.cardFooter}>Cree le {formatDate(item.created_at)}</Text>
     </TouchableOpacity>
   );
 
-  const activeShipmentData = (() => {
-    switch (activeTab) {
-      case 'transportSchedule':
-        return overview.transportSchedule;
-      case 'awaitingDelivery':
-        return overview.awaitingDelivery;
-      case 'shipmentRequests':
-        return overview.shipmentRequests;
-      case 'recurringQuestions':
-        return overview.recurringQuestions;
-      default:
-        return [];
-    }
-  })();
-
-  const emptyLabels: Record<TabKey, string> = {
-    clients: 'Aucun client enregistre',
-    transportSchedule: 'Aucune demande de calendrier',
-    awaitingDelivery: 'Aucun colis en attente de livraison',
-    shipmentRequests: 'Aucune demande d\'envoi en attente',
-    recurringQuestions: 'Aucune question recurrente',
-  };
-
-  const renderSectionHeader = () => {
-    if (!activeTab) {
+  const renderContent = () => {
+    if (loading) {
       return (
-        <View style={styles.placeholderCard}>
-          <Text style={styles.placeholderEyebrow}>Prochaine etape</Text>
-          <Text style={styles.placeholderTitle}>Choisissez une file de travail selon la priorite du moment.</Text>
-          <Text style={styles.placeholder}>
-            Commencez par la file recommandee, puis ouvrez les autres uniquement quand vous avez besoin de changer de contexte.
-          </Text>
-          <View style={styles.recommendationCard}>
-            <View style={[styles.recommendationDot, { backgroundColor: TAB_ACCENTS[focusQueue].bg }]} />
-            <View style={styles.recommendationCopy}>
-              <Text style={styles.recommendationLabel}>Action recommandee</Text>
-              <Text style={styles.recommendationTitle}>{nextActionLabel}</Text>
-              <Text style={styles.recommendationText}>{TAB_DESCRIPTIONS[focusQueue]}</Text>
-            </View>
-          </View>
+        <View style={styles.centerCard}>
+          <ActivityIndicator size="large" color="#0f4c5c" />
+          <Text style={styles.centerText}>Chargement des phases...</Text>
+        </View>
+      );
+    }
+
+    if (errorMessage && totals.global === 0 && totals.clients === 0) {
+      return (
+        <View style={styles.errorCard}>
+          <Text style={styles.errorTitle}>Le dashboard est indisponible</Text>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>Reessayer</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (activeItems.length === 0) {
+      return (
+        <View style={styles.centerCard}>
+          <Text style={styles.centerTitle}>Aucun element dans ce tab</Text>
+          <Text style={styles.centerText}>{TAB_HINTS[activeTab]}</Text>
         </View>
       );
     }
 
     return (
-      <View style={[styles.sectionBanner, { backgroundColor: currentAccent.soft }]}> 
-        <View style={styles.sectionTopRow}>
-          <Text style={[styles.sectionEyebrow, { color: currentAccent.text }]}>Section active</Text>
-          <Text style={[styles.sectionCount, { color: currentAccent.text }]}>{activeCount} element{activeCount > 1 ? 's' : ''}</Text>
-        </View>
-        <Text style={styles.sectionTitle}>{TAB_LABELS[activeTab]}</Text>
-        <Text style={styles.sectionDescription}>{TAB_DESCRIPTIONS[activeTab]}</Text>
-        <Text style={styles.sectionActionHint}>{TAB_ACTION_COPY[activeTab]}</Text>
+      <View style={styles.listWrap}>
+        {activeItems.map(renderShipmentCard)}
       </View>
     );
   };
 
-  const renderEmptyState = (message: string, tabKey: TabKey) => (
-    <View style={styles.emptyCard}>
-      <Text style={styles.emptyTitle}>Rien a afficher pour le moment</Text>
-      <Text style={styles.empty}>{message}</Text>
-      <Text style={styles.emptyHint}>{EMPTY_TIPS[tabKey]}</Text>
-      <TouchableOpacity
-        style={styles.secondaryAction}
-        onPress={() => navigation.navigate('ParseMessage', {})}
-      >
-        <Text style={styles.secondaryActionText}>Analyser un message</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  let content = renderSectionHeader();
-
-  if (loading) {
-    content = (
-      <View style={styles.loadingCard}>
-        <ActivityIndicator size="large" color="#123524" />
-        <Text style={styles.loadingText}>Chargement du tableau de bord...</Text>
-      </View>
-    );
-  } else if (errorMessage && totalRequests === 0 && overview.clients.length === 0) {
-    content = (
-      <View style={styles.errorCard}>
-        <Text style={styles.errorTitle}>Le tableau de bord n'est pas disponible</Text>
-        <Text style={styles.errorText}>{errorMessage}</Text>
-        <TouchableOpacity style={styles.primaryRetryButton} onPress={handleRefresh}>
-          <Text style={styles.primaryRetryLabel}>Reessayer</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  } else if (activeTab === 'clients') {
-    const renderClientItem: ListRenderItem<Client> = ({ item }) => renderClientCard(item);
-
-    content = (
-      <FlatList
-        data={overview.clients}
-        key="clients"
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        ListHeaderComponent={renderSectionHeader}
-        ListEmptyComponent={renderEmptyState(emptyLabels.clients, 'clients')}
-        renderItem={renderClientItem}
-      />
-    );
-  } else if (activeTab) {
-    const renderShipmentItem: ListRenderItem<ShipmentItem> = ({ item }) =>
-      renderShipmentCard(
-        item,
-        activeTab === 'awaitingDelivery' || activeTab === 'shipmentRequests'
-      );
-
-    content = (
-      <FlatList
-        data={activeShipmentData}
-        key={activeTab}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        ListHeaderComponent={renderSectionHeader}
-        ListEmptyComponent={renderEmptyState(emptyLabels[activeTab], activeTab)}
-        renderItem={renderShipmentItem}
-      />
-    );
-  }
-
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <View>
-            <Text style={styles.heroEyebrow}>Centre de traitement Fret CM-DE</Text>
-            <Text style={styles.heroTitle}>Pilotez les demandes sans perdre le fil</Text>
+            <Text style={styles.heroEyebrow}>Pilotage operationnel</Text>
+            <Text style={styles.heroTitle}>Files de travail en 3 phases</Text>
           </View>
-          <TouchableOpacity style={styles.logoutPill} onPress={logout}>
-            <Text style={styles.logoutText}>Déconnexion</Text>
+          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+            <Text style={styles.logoutText}>Deconnexion</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.statusPill}>
-          <View style={styles.statusPillDot} />
-          <Text style={styles.statusPillText}>{operationsStatus}</Text>
-        </View>
-
         <Text style={styles.heroDescription}>
-          {operationsMessage}
+          Chargement, en mer et distribution avec des tabs metier relies a la base de donnees.
         </Text>
 
         <View style={styles.metricsRow}>
-          <View style={styles.metricCardPrimary}>
-            <Text style={styles.metricCardEyebrow}>Charge du jour</Text>
-            <Text style={styles.metricValue}>{totalRequests}</Text>
-            <Text style={styles.metricLabel}>Demandes ouvertes a traiter</Text>
+          <View style={styles.metricCardLarge}>
+            <Text style={styles.metricValue}>{totals.global}</Text>
+            <Text style={styles.metricLabel}>Dossiers dans les files</Text>
           </View>
           <View style={styles.metricColumn}>
-            <View style={styles.metricCardSecondary}>
-              <Text style={styles.metricMiniValue}>{overview.clients.length}</Text>
-              <Text style={styles.metricMiniLabel}>Clients suivis</Text>
+            <View style={styles.metricCardSmall}>
+              <Text style={styles.metricMiniValue}>{totals.clients}</Text>
+              <Text style={styles.metricMiniLabel}>Clients</Text>
             </View>
-            <View style={styles.metricCardSecondary}>
-              <Text style={styles.metricMiniValue}>{deliveryPressure}</Text>
-              <Text style={styles.metricMiniLabel}>Demandes urgentes</Text>
+            <View style={styles.metricCardSmall}>
+              <Text style={styles.metricMiniValue}>{totals.loading}</Text>
+              <Text style={styles.metricMiniLabel}>Chargement</Text>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.priorityStrip}>
-          <View style={styles.priorityCopy}>
-            <Text style={styles.priorityEyebrow}>Priorite recommandee</Text>
-            <Text style={styles.priorityTitle}>{TAB_LABELS[focusQueue]}</Text>
-            <Text style={styles.priorityText}>{TAB_MICROCOPY[focusQueue]}</Text>
-          </View>
-          <View style={styles.priorityBadge}>
-            <Text style={styles.priorityBadgeValue}>{tabCounts[focusQueue]}</Text>
-            <Text style={styles.priorityBadgeLabel}>a traiter</Text>
           </View>
         </View>
 
@@ -450,57 +553,130 @@ export default function DashboardScreen() {
           style={styles.primaryAction}
           onPress={() => navigation.navigate('ParseMessage', {})}
         >
-          <Text style={styles.primaryActionLabel}>Analyser un nouveau message</Text>
-          <Text style={styles.primaryActionHint}>Ajouter une demande dans le circuit de traitement sans quitter le tableau de bord</Text>
+          <Text style={styles.primaryActionText}>Analyser un nouveau message</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tabsSection}>
-        <View style={styles.tabsSectionHeader}>
-          <Text style={styles.tabsSectionTitle}>Files de travail</Text>
-          <Text style={styles.tabsSectionHint}>Chaque file correspond a une action metier. Touchez pour ouvrir ou fermer son contenu.</Text>
-        </View>
+      <View style={styles.panel}>
+        <Text style={styles.sectionTitle}>Workflow de transit</Text>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContainer}
-        >
-          {TAB_ORDER.map((tabKey) => {
-            const isActive = activeTab === tabKey;
-            const accent = TAB_ACCENTS[tabKey];
+        {isTransitStarted ? (
+          <>
+            <Text style={styles.sectionSubtitle}>Phase active</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phaseTabsRow}>
+              {phaseProgress.map((phase) => {
+                const active = phase === activePhase;
+                return (
+                  <View
+                    key={phase}
+                    style={[
+                      styles.phaseTab,
+                      { borderColor: PHASE_ACCENTS[phase].soft },
+                      active && { backgroundColor: PHASE_ACCENTS[phase].bg, borderColor: PHASE_ACCENTS[phase].bg },
+                    ]}
+                  >
+                    <Text style={[styles.phaseTabText, active && styles.phaseTabTextActive]}>{PHASE_LABELS[phase]}</Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
 
-            return (
-              <TouchableOpacity
-                key={tabKey}
-                style={[
-                  styles.tabButton,
-                  { borderColor: accent.soft },
-                  isActive && { backgroundColor: accent.bg, borderColor: accent.bg },
-                ]}
-                onPress={() => setActiveTab((currentTab) => currentTab === tabKey ? null : tabKey)}
-              >
-                <Text style={[styles.tabCount, isActive && styles.tabCountActive]}>{tabCounts[tabKey]}</Text>
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{TAB_LABELS[tabKey]}</Text>
-                <Text style={[styles.tabCaption, isActive && styles.tabCaptionActive]}>{TAB_MICROCOPY[tabKey]}</Text>
+            {activePhase === 'loading' ? (
+              <View style={[styles.departureCard, { backgroundColor: PHASE_ACCENTS.loading.soft }]}> 
+                <Text style={styles.departureLabel}>Date de depart (phase chargement)</Text>
+                <Text style={styles.departureValue}>{formatDate(workflowDepartureDate || overview.phases.loading.nextDepartureDate)}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.workflowActionsRow}>
+              <TouchableOpacity style={styles.finishPhaseButton} onPress={handleFinishCurrentPhase}>
+                <Text style={styles.finishPhaseButtonText}>Fin de cette phase</Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+              {canReturnPrevious ? (
+                <TouchableOpacity style={styles.backPhaseButton} onPress={handleReturnPreviousPhase}>
+                  <Text style={styles.backPhaseButtonText}>Retour a la phase precedente</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
 
-      <View style={styles.contentWrap}>{content}</View>
-    </View>
+            <Text style={styles.sectionSubtitle}>Tabs de la phase {PHASE_LABELS[activePhase].toLowerCase()}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subTabsRow}>
+              {activeTabs.map((tab) => {
+                const active = tab === activeTab;
+                const count = tabDataMap[tab]?.length || 0;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[styles.subTab, active && styles.subTabActive]}
+                    onPress={() => setActiveTab(tab)}
+                  >
+                    <Text style={[styles.subTabCount, active && styles.subTabCountActive]}>{count}</Text>
+                    <Text style={[styles.subTabText, active && styles.subTabTextActive]}>{TAB_LABELS[tab]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={styles.tabHint}>{TAB_HINTS[activeTab]}</Text>
+
+            {renderContent()}
+          </>
+        ) : (
+          <View style={styles.workflowStartCard}>
+            <Text style={styles.workflowStartTitle}>Les phases sont masquees tant que le transit n'est pas lance.</Text>
+            <Text style={styles.workflowStartText}>Cliquez sur le bouton ci-dessous pour debuter le transit.</Text>
+
+            {isStartFormVisible ? (
+              <View style={styles.startFormCard}>
+                <Text style={styles.startFormLabel}>Date de depart</Text>
+                <TextInput
+                  style={styles.startFormInput}
+                  value={departureDateInput}
+                  onChangeText={setDepartureDateInput}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#8b8c86"
+                />
+                <View style={styles.startFormActions}>
+                  <TouchableOpacity
+                    style={styles.cancelStartButton}
+                    onPress={handleCancelStartTransit}
+                  >
+                    <Text style={styles.cancelStartButtonText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.startNowButton, !departureDateInput.trim() && styles.disabledButton]}
+                    onPress={handleStartTransit}
+                    disabled={!departureDateInput.trim()}
+                  >
+                    <Text style={styles.startNowButtonText}>Commencer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.startTransitButton} onPress={handleOpenStartTransit}>
+                <Text style={styles.startTransitButtonText}>Debuter le transit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f1e8' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f6f1e8',
+  },
+  contentContainer: {
+    paddingBottom: 24,
+  },
   hero: {
+    backgroundColor: '#17332c',
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 18,
-    backgroundColor: '#17332c',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
   },
@@ -511,535 +687,420 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   heroEyebrow: {
-    color: '#d9eadf',
+    color: '#d6e4dd',
     fontSize: 12,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     fontWeight: '700',
   },
   heroTitle: {
     color: '#fffaf2',
-    fontSize: 29,
+    fontSize: 28,
     lineHeight: 33,
     fontWeight: '800',
     marginTop: 8,
-    maxWidth: 260,
+    maxWidth: 270,
   },
   heroDescription: {
-    color: '#c6d8cf',
-    fontSize: 15,
-    lineHeight: 22,
+    color: '#d2e0da',
+    fontSize: 14,
+    lineHeight: 21,
     marginTop: 14,
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 250, 242, 0.12)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 16,
-    gap: 8,
-  },
-  statusPillDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#f3c969',
-  },
-  statusPillText: {
-    color: '#fffaf2',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  logoutPill: {
-    backgroundColor: 'rgba(255, 250, 242, 0.16)',
+  logoutButton: {
+    backgroundColor: 'rgba(255, 250, 242, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 250, 242, 0.22)',
+    borderColor: 'rgba(255, 250, 242, 0.25)',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  logoutText: {
+    color: '#fffaf2',
+    fontWeight: '700',
+    fontSize: 13,
   },
   metricsRow: {
+    marginTop: 16,
     flexDirection: 'row',
     gap: 12,
-    marginTop: 20,
   },
-  metricCardPrimary: {
+  metricCardLarge: {
     flex: 1,
+    minHeight: 122,
     backgroundColor: '#fffaf2',
-    borderRadius: 24,
-    padding: 18,
-    minHeight: 126,
+    borderRadius: 22,
+    padding: 16,
     justifyContent: 'space-between',
   },
   metricValue: {
+    color: '#17332c',
     fontSize: 38,
     fontWeight: '800',
-    color: '#17332c',
-  },
-  metricCardEyebrow: {
-    color: '#8f6b4f',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    fontWeight: '800',
-    marginBottom: 10,
   },
   metricLabel: {
-    color: '#41554f',
-    fontSize: 14,
-    lineHeight: 20,
+    color: '#51655d',
+    fontSize: 13,
     fontWeight: '600',
   },
   metricColumn: {
     flex: 1,
     gap: 12,
   },
-  metricCardSecondary: {
+  metricCardSmall: {
     flex: 1,
-    backgroundColor: '#20453b',
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: '#25433b',
+    borderRadius: 18,
+    padding: 14,
     justifyContent: 'space-between',
   },
   metricMiniValue: {
-    fontSize: 28,
-    fontWeight: '800',
     color: '#fffaf2',
+    fontSize: 24,
+    fontWeight: '800',
   },
   metricMiniLabel: {
-    color: '#d5e1db',
-    fontSize: 13,
-    lineHeight: 18,
+    color: '#d3e0da',
+    fontSize: 12,
     fontWeight: '600',
   },
-  priorityStrip: {
-    marginTop: 16,
-    backgroundColor: '#24463f',
-    borderRadius: 22,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 14,
-  },
-  priorityCopy: {
-    flex: 1,
-  },
-  priorityEyebrow: {
-    color: '#d0ddd7',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    fontWeight: '800',
-  },
-  priorityTitle: {
-    color: '#fffaf2',
-    fontSize: 19,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  priorityText: {
-    color: '#d7e3de',
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  priorityBadge: {
-    width: 86,
-    height: 86,
-    borderRadius: 24,
-    backgroundColor: '#fffaf2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-  },
-  priorityBadgeValue: {
-    color: '#17332c',
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  priorityBadgeLabel: {
-    color: '#50615c',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   primaryAction: {
-    backgroundColor: '#b75d4b',
-    borderRadius: 22,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    marginTop: 18,
-  },
-  primaryActionLabel: {
-    color: '#fffaf2',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  primaryActionHint: {
-    color: '#ffe7de',
-    fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  tabsSection: {
-    paddingTop: 18,
-  },
-  tabsSectionHeader: {
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  tabsSectionTitle: {
-    color: '#17332c',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  tabsSectionHint: {
-    color: '#6c6a63',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  tabsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    gap: 12,
-  },
-  tabButton: {
-    width: 164,
-    minHeight: 124,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fffaf2',
-    borderWidth: 1,
-    justifyContent: 'space-between',
-  },
-  tabCount: {
-    alignSelf: 'flex-start',
-    minWidth: 34,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#efe7d9',
-    color: '#17332c',
-    fontSize: 15,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  tabCountActive: {
-    backgroundColor: 'rgba(255, 250, 242, 0.2)',
-    color: '#fffaf2',
-  },
-  tabText: {
-    color: '#17332c',
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700',
-    marginTop: 14,
-  },
-  tabTextActive: {
-    color: '#fffaf2',
-  },
-  tabCaption: {
-    color: '#6b6d67',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 8,
-  },
-  tabCaptionActive: {
-    color: '#dfe9e4',
-  },
-  contentWrap: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  listContent: {
-    paddingBottom: 24,
-  },
-  sectionBanner: {
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    marginBottom: 16,
-  },
-  sectionTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  sectionEyebrow: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '800',
-  },
-  sectionCount: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    color: '#17332c',
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  sectionDescription: {
-    color: '#4e5f59',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-  },
-  sectionActionHint: {
-    color: '#17332c',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '700',
-    marginTop: 10,
-  },
-  loadingCard: {
-    backgroundColor: '#fffaf2',
-    borderRadius: 28,
-    padding: 28,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  errorCard: {
-    backgroundColor: '#fff4f0',
-    borderRadius: 28,
-    padding: 24,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#f0d2c9',
-  },
-  errorTitle: {
-    color: '#7b241c',
-    fontSize: 21,
-    lineHeight: 28,
-    fontWeight: '800',
-  },
-  errorText: {
-    color: '#7b3b32',
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10,
-  },
-  primaryRetryButton: {
-    marginTop: 18,
+    marginTop: 16,
     backgroundColor: '#b75d4b',
     borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  primaryRetryLabel: {
+  primaryActionText: {
     color: '#fffaf2',
     fontSize: 15,
     fontWeight: '800',
   },
-  loadingText: {
-    color: '#4e5f59',
-    fontSize: 15,
-    marginTop: 14,
-  },
-  placeholderCard: {
-    backgroundColor: '#fffaf2',
-    borderRadius: 28,
+  panel: {
+    marginTop: 16,
     paddingHorizontal: 20,
-    paddingVertical: 22,
-    marginTop: 8,
   },
-  placeholderEyebrow: {
-    color: '#b75d4b',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  placeholderTitle: {
+  sectionTitle: {
     color: '#17332c',
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 21,
     fontWeight: '800',
-    marginTop: 8,
   },
-  recommendationCard: {
-    marginTop: 18,
-    backgroundColor: '#f7eee2',
-    borderRadius: 22,
+  workflowStartCard: {
+    marginTop: 12,
+    backgroundColor: '#fffaf2',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#eadfce',
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
   },
-  recommendationDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    marginTop: 4,
+  workflowStartTitle: {
+    color: '#17332c',
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 22,
   },
-  recommendationCopy: {
+  workflowStartText: {
+    marginTop: 8,
+    color: '#5f6a65',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  startTransitButton: {
+    marginTop: 14,
+    backgroundColor: '#0f4c5c',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  startTransitButtonText: {
+    color: '#fffaf2',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  startFormCard: {
+    marginTop: 14,
+    backgroundColor: '#f6f1e8',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e3d8c7',
+  },
+  startFormLabel: {
+    color: '#17332c',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  startFormInput: {
+    backgroundColor: '#fffaf2',
+    borderWidth: 1,
+    borderColor: '#d8ccba',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#17332c',
+    fontSize: 14,
+  },
+  startNowButton: {
+    backgroundColor: '#b75d4b',
+    borderRadius: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    alignItems: 'center',
     flex: 1,
   },
-  recommendationLabel: {
-    color: '#8f6b4f',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  startNowButtonText: {
+    color: '#fffaf2',
+    fontSize: 14,
     fontWeight: '800',
   },
-  recommendationTitle: {
+  startFormActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelStartButton: {
+    backgroundColor: '#efe4d5',
+    borderRadius: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    flex: 1,
+  },
+  cancelStartButtonText: {
     color: '#17332c',
-    fontSize: 17,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+  phaseTabsRow: {
+    gap: 10,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  phaseTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    backgroundColor: '#fffaf2',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  phaseTabText: {
+    color: '#17332c',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  phaseTabTextActive: {
+    color: '#fffaf2',
+  },
+  departureCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  departureLabel: {
+    color: '#1b4f5d',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  departureValue: {
+    color: '#17332c',
+    fontSize: 20,
     fontWeight: '800',
     marginTop: 4,
   },
-  recommendationText: {
-    color: '#5e655f',
+  workflowActionsRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  finishPhaseButton: {
+    backgroundColor: '#17332c',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  finishPhaseButtonText: {
+    color: '#fffaf2',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  backPhaseButton: {
+    backgroundColor: '#efe4d5',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  backPhaseButtonText: {
+    color: '#17332c',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sectionSubtitle: {
+    color: '#5f6a65',
+    fontSize: 13,
+    marginTop: 14,
+  },
+  subTabsRow: {
+    gap: 10,
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  subTab: {
+    width: 210,
+    borderRadius: 18,
+    backgroundColor: '#fffaf2',
+    borderWidth: 1,
+    borderColor: '#eadfce',
+    padding: 14,
+  },
+  subTabActive: {
+    backgroundColor: '#17332c',
+    borderColor: '#17332c',
+  },
+  subTabCount: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ece4d7',
+    color: '#17332c',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  subTabCountActive: {
+    backgroundColor: 'rgba(255, 250, 242, 0.2)',
+    color: '#fffaf2',
+  },
+  subTabText: {
+    marginTop: 10,
+    color: '#17332c',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  subTabTextActive: {
+    color: '#fffaf2',
+  },
+  tabHint: {
+    color: '#6d6f68',
+    marginTop: 12,
     fontSize: 13,
     lineHeight: 19,
-    marginTop: 4,
+  },
+  listWrap: {
+    marginTop: 12,
+    gap: 10,
   },
   card: {
     backgroundColor: '#fffaf2',
-    marginBottom: 12,
-    padding: 18,
-    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#efe3d3',
-  },
-  clientCard: {
-    backgroundColor: '#fcf7f0',
+    borderColor: '#eadfce',
+    borderRadius: 20,
+    padding: 16,
   },
   cardTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 12,
+    alignItems: 'flex-start',
+    gap: 10,
   },
-  clientAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#17332c',
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardTextBlock: {
+    flex: 1,
   },
-  clientAvatarText: {
-    color: '#fffaf2',
+  cardClientName: {
+    color: '#17332c',
     fontSize: 16,
     fontWeight: '800',
   },
-  cardTextColumn: {
-    flex: 1,
-  },
-  cardEyebrow: {
-    color: '#8f6b4f',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  categoryBadge: {
-    color: '#7c4a03',
-    backgroundColor: '#f8e7bf',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: '700',
-    overflow: 'hidden',
-  },
-  cardName: { fontSize: 18, fontWeight: '700', color: '#17332c' },
-  cardPhone: { fontSize: 14, color: '#5e655f', marginTop: 3 },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  statusLabel: {
-    color: '#8f6b4f',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  metaText: {
-    color: '#17332c',
-    fontSize: 12,
-    textTransform: 'capitalize',
-    backgroundColor: '#efe7d9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  messagePreview: {
-    color: '#4e5f59',
+  cardPhone: {
+    color: '#5f6a65',
     fontSize: 13,
-    marginTop: 12,
+    marginTop: 3,
+  },
+  cardStatus: {
+    color: '#17332c',
+    backgroundColor: '#ece4d7',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    overflow: 'hidden',
+  },
+  cardInfo: {
+    color: '#375f69',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 10,
+  },
+  cardMessage: {
+    marginTop: 10,
+    color: '#545f59',
+    fontSize: 13,
     lineHeight: 18,
   },
   cardFooter: {
-    color: '#8b8c87',
+    marginTop: 12,
+    color: '#8a8c86',
     fontSize: 12,
-    marginTop: 14,
   },
-  cardLink: {
-    color: '#17332c',
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  emptyCard: {
+  centerCard: {
+    marginTop: 12,
     backgroundColor: '#fffaf2',
-    borderRadius: 26,
-    paddingHorizontal: 20,
-    paddingVertical: 26,
+    borderRadius: 22,
+    padding: 22,
     alignItems: 'center',
-    marginTop: 4,
   },
-  emptyTitle: {
+  centerTitle: {
     color: '#17332c',
     fontSize: 18,
     fontWeight: '800',
     textAlign: 'center',
   },
-  empty: {
+  centerText: {
+    color: '#6e7069',
+    fontSize: 14,
     textAlign: 'center',
-    color: '#6c6a63',
+    lineHeight: 20,
     marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
   },
-  emptyHint: {
-    textAlign: 'center',
-    color: '#8b8c87',
-    marginTop: 10,
-    fontSize: 13,
-    lineHeight: 19,
+  errorCard: {
+    marginTop: 12,
+    backgroundColor: '#fff2ec',
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#efcfc2',
   },
-  secondaryAction: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: '#17332c',
+  errorTitle: {
+    color: '#7e2b24',
+    fontSize: 20,
+    fontWeight: '800',
   },
-  secondaryActionText: {
+  errorText: {
+    color: '#7e3e36',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  retryButton: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    backgroundColor: '#b75d4b',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retryButtonText: {
     color: '#fffaf2',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  placeholder: {
-    textAlign: 'center',
-    color: '#5e655f',
-    marginTop: 10,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  logoutText: { color: '#fffaf2', fontSize: 13, fontWeight: '700' },
 });

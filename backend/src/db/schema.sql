@@ -29,9 +29,12 @@ CREATE TABLE IF NOT EXISTS clients (
 CREATE TABLE IF NOT EXISTS shipments (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id      UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  phase          VARCHAR(20) NOT NULL DEFAULT 'LOADING'
+                   CHECK (phase IN ('LOADING','AT_SEA','DISTRIBUTION')),
   category       VARCHAR(20) NOT NULL
                    CHECK (category IN ('ARRIVAL','CLAIM','SHIPMENT','SCHEDULE','CUSTOMS','UNKNOWN')),
-  status         VARCHAR(50) NOT NULL DEFAULT 'EN_ATTENTE',
+  status         VARCHAR(50) NOT NULL DEFAULT 'EN_ATTENTE_CHARGEMENT',
+  departure_date DATE,
   tracking_token VARCHAR(36) UNIQUE NOT NULL,
   raw_message    TEXT,
   notes          TEXT,
@@ -41,6 +44,21 @@ CREATE TABLE IF NOT EXISTS shipments (
 
 CREATE INDEX IF NOT EXISTS idx_shipments_token  ON shipments(tracking_token);
 CREATE INDEX IF NOT EXISTS idx_shipments_client ON shipments(client_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_phase  ON shipments(phase);
+CREATE INDEX IF NOT EXISTS idx_shipments_status ON shipments(status);
+CREATE INDEX IF NOT EXISTS idx_shipments_departure_date ON shipments(departure_date);
+
+-- ─────────────────────────────────────────
+-- Workflow transit admin (etat UI persiste)
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS transit_workflows (
+  admin_id            UUID PRIMARY KEY REFERENCES admins(id) ON DELETE CASCADE,
+  is_transit_started  BOOLEAN NOT NULL DEFAULT FALSE,
+  active_phase        VARCHAR(20) NOT NULL DEFAULT 'LOADING'
+                        CHECK (active_phase IN ('LOADING','AT_SEA','DISTRIBUTION')),
+  departure_date      DATE,
+  updated_at          TIMESTAMP DEFAULT NOW()
+);
 
 -- ─────────────────────────────────────────
 -- Créer le premier admin

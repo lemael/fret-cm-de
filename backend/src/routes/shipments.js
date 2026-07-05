@@ -6,6 +6,18 @@ const { parseMessage } = require('../services/parser');
 
 const router = express.Router();
 
+const ALLOWED_PHASES = new Set(['LOADING', 'AT_SEA', 'DISTRIBUTION']);
+
+const inferPhaseFromStatus = (status) => {
+  if (['DISTRIBUE', 'LIVRE', 'EN_DISTRIBUTION', 'EN_ATTENTE_DISTRIBUTION'].includes(status)) {
+    return 'DISTRIBUTION';
+  }
+  if (['EN_MER', 'EN_TRANSIT_MARITIME', 'TRACKING_EN_COURS'].includes(status)) {
+    return 'AT_SEA';
+  }
+  return 'LOADING';
+};
+
 // POST /api/shipments/parse — analyse un message WhatsApp et crée un dossier
 router.post('/parse', auth, async (req, res) => {
   const { phone, name, rawMessage } = req.body;
@@ -27,9 +39,9 @@ router.post('/parse', auth, async (req, res) => {
     const trackingToken = uuidv4();
 
     const shipmentResult = await pool.query(
-      `INSERT INTO shipments (client_id, category, status, tracking_token, raw_message)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [client.id, category, 'EN_ATTENTE', trackingToken, rawMessage]
+      `INSERT INTO shipments (client_id, phase, category, status, departure_date, tracking_token, raw_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [client.id, 'LOADING', category, 'EN_ATTENTE_CHARGEMENT', null, trackingToken, rawMessage]
     );
 
     const baseUrl = process.env.WEB_URL || 'https://ravishing-endurance-production-7ff1.up.railway.app';
@@ -46,13 +58,28 @@ router.post('/parse', auth, async (req, res) => {
 
 // PATCH /api/shipments/:id/status — mise à jour du statut
 router.patch('/:id/status', auth, async (req, res) => {
-  const { status } = req.body;
+  const { status, phase, departureDate } = req.body;
   if (!status) return res.status(400).json({ error: 'Statut requis' });
+
+  const nextPhase = phase || inferPhaseFromStatus(status);
+  if (!ALLOWED_PHASES.has(nextPhase)) {
+    return res.status(400).json({ error: 'Phase invalide' });
+  }
+
+  if (departureDate && Number.isNaN(Date.parse(departureDate))) {
+    return res.status(400).json({ error: 'Date de depart invalide' });
+  }
 
   try {
     const result = await pool.query(
-      'UPDATE shipments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [status, req.params.id]
+      `UPDATE shipments
+       SET status = $1,
+           phase = $2,
+           departure_date = COALESCE($3, departure_date),
+           updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [status, nextPhase, departureDate || null, req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Dossier introuvable' });
     res.json(result.rows[0]);
