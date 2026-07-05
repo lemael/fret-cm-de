@@ -553,12 +553,14 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.primaryAction}
-          onPress={() => navigation.navigate('ParseMessage', {})}
-        >
-          <Text style={styles.primaryActionText}>Analyser un nouveau message</Text>
-        </TouchableOpacity>
+        {isTransitStarted ? (
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() => navigation.navigate('ParseMessage', {})}
+          >
+            <Text style={styles.primaryActionText}>Analyser un nouveau message</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.panel}>

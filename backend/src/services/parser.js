@@ -24,4 +24,66 @@ function parseMessage(text) {
   return 'UNKNOWN';
 }
 
-module.exports = { parseMessage, CATEGORIES };
+const parseProductList = (text) => {
+  const explicitProducts = text.match(/produits?\s*[:=-]\s*([^\n]+)/i);
+  if (explicitProducts && explicitProducts[1]) {
+    return explicitProducts[1]
+      .split(/[,;|/]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  const bulletProducts = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[-*•]\s+/.test(line))
+    .map((line) => line.replace(/^[-*•]\s+/, '').trim())
+    .filter(Boolean);
+
+  return bulletProducts;
+};
+
+const parseDimensions = (text) => {
+  const dimensionMatch = text.match(
+    /(\d{1,4}(?:[.,]\d+)?)\s*[xX*]\s*(\d{1,4}(?:[.,]\d+)?)\s*[xX*]\s*(\d{1,4}(?:[.,]\d+)?)(?:\s*(cm|mm|m))?/i
+  );
+
+  if (!dimensionMatch) {
+    return null;
+  }
+
+  const toNumber = (raw) => Number(String(raw).replace(',', '.'));
+
+  return {
+    length: toNumber(dimensionMatch[1]),
+    width: toNumber(dimensionMatch[2]),
+    height: toNumber(dimensionMatch[3]),
+    unit: (dimensionMatch[4] || 'cm').toLowerCase(),
+  };
+};
+
+function extractShipmentDetails(text, { clientName, clientPhone } = {}) {
+  const products = parseProductList(text || '');
+  const dimensions = parseDimensions(text || '');
+
+  const parcel = {
+    clientName: clientName || null,
+    clientPhone: clientPhone || null,
+    products,
+    dimensions,
+  };
+
+  const missingFields = [];
+  if (!parcel.clientName) missingFields.push('clientName');
+  if (!parcel.clientPhone) missingFields.push('clientPhone');
+  if (!parcel.products.length) missingFields.push('products');
+  if (!parcel.dimensions) missingFields.push('dimensions');
+
+  return {
+    parcel,
+    missingFields,
+    isComplete: missingFields.length === 0,
+  };
+}
+
+module.exports = { parseMessage, CATEGORIES, extractShipmentDetails };

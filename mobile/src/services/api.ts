@@ -51,8 +51,12 @@ export const clientsAPI = {
 };
 
 export const shipmentsAPI = {
-  parse: (phone: string, rawMessage: string, name?: string) =>
-    api.post('/api/shipments/parse', { phone, name, rawMessage }),
+  parse: (
+    phone: string,
+    rawMessage: string,
+    name?: string,
+    subject: 'SEND_PACKAGE' | 'OTHER' = 'OTHER'
+  ) => api.post('/api/shipments/parse', { phone, name, rawMessage, subject }),
   updateStatus: (id: string, status: string) =>
     api.patch(`/api/shipments/${id}/status`, { status }),
 };
