@@ -259,11 +259,11 @@ export default function DashboardScreen() {
         clientsAPI.workflowState(),
       ]);
 
-      if (overviewRes.status !== 'fulfilled') {
-        throw new Error('overview-failed');
+      if (overviewRes.status === 'fulfilled') {
+        setOverview(normalizeOverview(overviewRes.value.data));
+      } else {
+        setOverview(createEmptyOverview());
       }
-
-      setOverview(normalizeOverview(overviewRes.value.data));
 
       const fallbackWorkflow: WorkflowState = {
         isTransitStarted: false,
@@ -289,7 +289,11 @@ export default function DashboardScreen() {
       setActiveTab(PHASE_TABS[restoredPhase][0]);
       setIsStartFormVisible(false);
       setDepartureDateInput('');
-      setErrorMessage(null);
+      setErrorMessage(
+        overviewRes.status === 'fulfilled'
+          ? null
+          : 'Impossible de charger les files de travail. Verifiez la connexion puis reessayez.'
+      );
     } catch {
       setErrorMessage('Impossible de charger les files de travail. Verifiez la connexion puis reessayez.');
     } finally {
