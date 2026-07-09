@@ -5,3 +5,21 @@ dist/
 .next/
 *.log
 .expo/
+web/next-env.d.ts
+
+# Secrets de signature Android — ne jamais committer
+mobile/android/keystore.properties
+mobile/android/app/*.keystore
+!mobile/android/app/debug.keystore
+
+# Artefacts de build Android — régénérés localement, jamais versionnés
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/local.properties
+mobile/android/**/.cxx/
+mobile/android/*.iml
+mobile/android/.idea/
+
+# APK publié — hébergé sur Railway via `railway up`, pas besoin dans Git
+web/public/updates/*.apk

@@ -2,9 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
+export type Role = 'admin' | 'client' | 'gestionnaire';
+
 interface AuthContextType {
   token: string | null;
-  login: (token: string) => Promise<void>;
+  role: Role | null;
+  login: (token: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -12,6 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const TOKEN_KEY = 'jwt_token';
+const ROLE_KEY = 'jwt_role';
 
 // Abstraction store : SecureStore sur mobile, localStorage sur web
 const storage = {
@@ -31,27 +35,35 @@ const storage = {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    storage.getItem(TOKEN_KEY).then((stored) => {
-      if (stored) setToken(stored);
-      setIsLoading(false);
-    });
+    Promise.all([storage.getItem(TOKEN_KEY), storage.getItem(ROLE_KEY)]).then(
+      ([storedToken, storedRole]) => {
+        if (storedToken) setToken(storedToken);
+        if (storedRole) setRole(storedRole as Role);
+        setIsLoading(false);
+      }
+    );
   }, []);
 
-  const login = async (newToken: string) => {
+  const login = async (newToken: string, newRole: Role) => {
     await storage.setItem(TOKEN_KEY, newToken);
+    await storage.setItem(ROLE_KEY, newRole);
     setToken(newToken);
+    setRole(newRole);
   };
 
   const logout = async () => {
     await storage.deleteItem(TOKEN_KEY);
+    await storage.deleteItem(ROLE_KEY);
     setToken(null);
+    setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ token, role, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

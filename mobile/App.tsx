@@ -2,12 +2,15 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import UpdateGate from './src/components/UpdateGate';
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-      <StatusBar style="light" />
-    </AuthProvider>
+    <UpdateGate>
+      <AuthProvider>
+        <AppNavigator />
+        <StatusBar style="light" />
+      </AuthProvider>
+    </UpdateGate>
   );
 }

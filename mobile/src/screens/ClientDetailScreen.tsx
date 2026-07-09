@@ -8,11 +8,19 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useRoute, RouteProp } from '@react-navigation/native';
-import { clientsAPI, shipmentsAPI } from '../services/api';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { clientsAPI, shipmentsAPI, disputesAPI } from '../services/api';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type RouteType = RouteProp<RootStackParamList, 'ClientDetail'>;
+type Nav = NativeStackNavigationProp<RootStackParamList, 'ClientDetail'>;
+
+const DISPUTE_TYPES: { label: string; value: 'LOST' | 'NON_CONFORME' | 'AUTRE' }[] = [
+  { label: 'Colis perdu', value: 'LOST' },
+  { label: 'Colis non conforme', value: 'NON_CONFORME' },
+  { label: 'Autre', value: 'AUTRE' },
+];
 
 const CATEGORY_LABELS: Record<string, string> = {
   ARRIVAL: 'Suivi arrivée',
@@ -34,6 +42,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function ClientDetailScreen() {
+  const navigation = useNavigation<Nav>();
   const route = useRoute<RouteType>();
   const { clientId } = route.params;
   const [data, setData] = useState<{ client: any; shipments: any[] } | null>(null);
@@ -61,6 +70,27 @@ export default function ClientDetailScreen() {
           onPress: async () => {
             await shipmentsAPI.updateStatus(shipmentId, s);
             await refresh();
+          },
+        })),
+        { text: 'Annuler', style: 'cancel' },
+      ]
+    );
+  };
+
+  const reportDispute = (shipmentId: string) => {
+    Alert.alert(
+      'Signaler un litige',
+      'Type de litige',
+      [
+        ...DISPUTE_TYPES.map(({ label, value }) => ({
+          text: label,
+          onPress: async () => {
+            try {
+              await disputesAPI.create(shipmentId, value);
+              Alert.alert('Litige signalé', 'Le gestionnaire pourra le traiter.');
+            } catch {
+              Alert.alert('Erreur', 'Impossible de signaler le litige');
+            }
           },
         })),
         { text: 'Annuler', style: 'cancel' },
@@ -106,6 +136,20 @@ export default function ClientDetailScreen() {
           <Text style={styles.date}>
             {new Date(s.created_at).toLocaleDateString('fr-FR')}
           </Text>
+          <View style={styles.cardActions}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => navigation.navigate('OrderDetail', { shipmentId: s.id, order: s })}
+            >
+              <Text style={styles.actionButtonText}>Messages</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonWarning]}
+              onPress={() => reportDispute(s.id)}
+            >
+              <Text style={styles.actionButtonText}>Signaler un litige</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ))}
     </ScrollView>
@@ -155,4 +199,24 @@ const styles = StyleSheet.create({
   },
   rawMsg: { fontSize: 13, color: '#6b7280', marginBottom: 8 },
   date: { fontSize: 12, color: '#9ca3af' },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#1a56db',
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  actionButtonWarning: {
+    backgroundColor: '#b91c1c',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });

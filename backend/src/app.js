@@ -5,6 +5,11 @@ const authRoutes = require('./routes/auth');
 const clientRoutes = require('./routes/clients');
 const shipmentRoutes = require('./routes/shipments');
 const statusRoutes = require('./routes/status');
+const orderRoutes = require('./routes/orders');
+const messageRoutes = require('./routes/messages');
+const disputeRoutes = require('./routes/disputes');
+const financeRoutes = require('./routes/finance');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 
@@ -15,6 +20,11 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/shipments', shipmentRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/disputes', disputeRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Route publique (page client)
 app.use('/api/status', statusRoutes);

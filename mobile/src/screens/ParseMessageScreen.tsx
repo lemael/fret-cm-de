@@ -10,8 +10,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Picker } from '@react-native-picker/picker';
 import { shipmentsAPI } from '../services/api';
+import { RootStackParamList } from '../navigation/AppNavigator';
 
 const CLIENT_WEB_BASE_URL = 'https://ravishing-endurance-production-7ff1.up.railway.app';
 
@@ -51,6 +54,7 @@ type Result = {
 };
 
 export default function ParseMessageScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'ParseMessage'>>();
   const [subject, setSubject] = useState<'SEND_PACKAGE' | 'OTHER'>('OTHER');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -160,6 +164,12 @@ export default function ParseMessageScreen() {
               Copier le lien à envoyer au client
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.homeButton}
+            onPress={() => navigation.navigate('Dashboard')}
+          >
+            <Text style={styles.homeButtonText}>Retour a l'accueil du dashboard</Text>
+          </TouchableOpacity>
 
           {subject === 'SEND_PACKAGE' && result.parcel ? (
             <View style={styles.parcelCard}>
@@ -262,6 +272,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   copyButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  homeButton: {
+    marginTop: 10,
+    backgroundColor: '#1a56db',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  homeButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   parcelCard: {
     marginTop: 16,
     paddingTop: 14,

@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { clientsAPI } from '../services/api';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import NotificationBell from '../components/NotificationBell';
 
 type Client = {
   id: string;
@@ -527,9 +528,12 @@ export default function DashboardScreen() {
             <Text style={styles.heroEyebrow}>Pilotage operationnel</Text>
             <Text style={styles.heroTitle}>Files de travail en 3 phases</Text>
           </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-            <Text style={styles.logoutText}>Deconnexion</Text>
-          </TouchableOpacity>
+          <View style={styles.heroActions}>
+            <NotificationBell />
+            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+              <Text style={styles.logoutText}>Deconnexion</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.heroDescription}>
@@ -712,6 +716,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     marginTop: 14,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   logoutButton: {
     backgroundColor: 'rgba(255, 250, 242, 0.15)',

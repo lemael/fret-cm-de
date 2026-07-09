@@ -32,7 +32,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const res = await authAPI.login(username.trim(), password);
-      await login(res.data.token);
+      await login(res.data.token, 'admin');
     } catch {
       Alert.alert('Connexion échouée', 'Identifiants incorrects');
     } finally {

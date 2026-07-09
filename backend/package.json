@@ -7,7 +7,9 @@
     "dev": "nodemon src/index.js",
     "test": "jest",
     "migrate:phases": "node src/scripts/migrate-shipment-phases.js",
-    "migrate:workflow": "node src/scripts/migrate-transit-workflow.js"
+    "migrate:workflow": "node src/scripts/migrate-transit-workflow.js",
+    "migrate:portal": "node src/scripts/migrate-client-portal.js",
+    "create:gestionnaire": "node src/scripts/create-gestionnaire.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -13,13 +13,15 @@
       "adaptiveIcon": {
         "backgroundColor": "#1a56db"
       },
-      "package": "com.fretcmde.admin"
+      "package": "com.fretcmde.admin",
+      "versionCode": 1
     },
     "ios": {
       "bundleIdentifier": "com.fretcmde.admin"
     },
     "extra": {
-      "apiUrl": "https://backend-production-0fb10.up.railway.app"
+      "apiUrl": "https://backend-production-0fb10.up.railway.app",
+      "updateUrl": "https://ravishing-endurance-production-7ff1.up.railway.app/updates/version.json"
     },
     "plugins": [
       "expo-secure-store"

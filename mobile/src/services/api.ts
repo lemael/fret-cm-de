@@ -34,6 +34,12 @@ export const authAPI = {
     api.post<{ token: string }>('/api/auth/login', { username, password }),
   resetPassword: (username: string, newPassword: string) =>
     api.post('/api/auth/reset-password', { username, newPassword }),
+  clientRegister: (phone: string, password: string, name?: string) =>
+    api.post<{ token: string; client: any }>('/api/auth/client/register', { phone, password, name }),
+  clientLogin: (phone: string, password: string) =>
+    api.post<{ token: string; client: any }>('/api/auth/client/login', { phone, password }),
+  gestionnaireLogin: (username: string, password: string) =>
+    api.post<{ token: string; gestionnaire: any }>('/api/auth/gestionnaire/login', { username, password }),
 };
 
 export const clientsAPI = {
@@ -59,6 +65,51 @@ export const shipmentsAPI = {
   ) => api.post('/api/shipments/parse', { phone, name, rawMessage, subject }),
   updateStatus: (id: string, status: string) =>
     api.patch(`/api/shipments/${id}/status`, { status }),
+};
+
+export type CreateOrderPayload = {
+  weightKg: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  contentDescription: string;
+  pickupAddress: string;
+  deliveryAddress: string;
+};
+
+export const ordersAPI = {
+  create: (payload: CreateOrderPayload) => api.post('/api/orders', payload),
+  mine: () => api.get('/api/orders/mine'),
+};
+
+export const messagesAPI = {
+  list: (shipmentId: string) => api.get(`/api/messages/${shipmentId}`),
+  send: (shipmentId: string, text: string) => api.post(`/api/messages/${shipmentId}`, { text }),
+};
+
+export const disputesAPI = {
+  list: () => api.get('/api/disputes'),
+  create: (shipmentId: string, type: 'LOST' | 'NON_CONFORME' | 'AUTRE', description?: string) =>
+    api.post('/api/disputes', { shipmentId, type, description }),
+  update: (id: string, payload: { status?: string; resolution?: string }) =>
+    api.patch(`/api/disputes/${id}`, payload),
+};
+
+export const financeAPI = {
+  overview: () => api.get('/api/finance/overview'),
+  addTransaction: (payload: {
+    amount: number;
+    commissionAmount?: number;
+    type: 'COLLECTE' | 'COMMISSION' | 'REVERSEMENT';
+    shipmentId?: string;
+    notes?: string;
+  }) => api.post('/api/finance/transactions', payload),
+};
+
+export const notificationsAPI = {
+  list: () => api.get('/api/notifications'),
+  markRead: (id: string) => api.patch(`/api/notifications/${id}/read`),
+  markAllRead: () => api.patch('/api/notifications/read-all'),
 };
 
 export default api;
