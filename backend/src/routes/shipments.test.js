@@ -131,4 +131,81 @@ describe('PATCH /api/shipments/:id/distribution-status', () => {
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('COLIS_EXISTANT');
   });
+
+  test('marks the batch as received on the first arrival', async () => {
+    mockQueryImplementation([
+      [
+        /^UPDATE SHIPMENTS/,
+        { rows: [{ id: 'shipment-1', status: 'COLIS_EXISTANT', batch_id: 'batch-1' }] },
+      ],
+      [/^UPDATE SHIPMENT_BATCHES/, { rowCount: 1 }],
+    ]);
+
+    const response = await request(app)
+      .patch('/api/shipments/shipment-1/distribution-status')
+      .set('Authorization', `Bearer ${gestionnaireToken}`)
+      .send({ status: 'COLIS_EXISTANT' });
+
+    expect(response.status).toBe(200);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE shipment_batches'),
+      ['batch-1']
+    );
+  });
+});
+
+describe('POST /api/shipments/close-batch', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  test('returns 400 when no package is ready', async () => {
+    mockQueryImplementation([[/^SELECT ID FROM SHIPMENTS/, { rows: [] }]]);
+
+    const response = await request(app)
+      .post('/api/shipments/close-batch')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(400);
+  });
+
+  test('creates a batch and attaches ready packages', async () => {
+    mockQueryImplementation([
+      [/^SELECT ID FROM SHIPMENTS/, { rows: [{ id: 's1' }, { id: 's2' }] }],
+      [/^INSERT INTO SHIPMENT_BATCHES/, { rows: [{ id: 'batch-1', shipped_at: '2026-01-01T00:00:00.000Z' }] }],
+      [/^UPDATE SHIPMENTS/, { rowCount: 2 }],
+    ]);
+
+    const response = await request(app)
+      .post('/api/shipments/close-batch')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(201);
+    expect(response.body.packagesCount).toBe(2);
+    expect(response.body.batch.id).toBe('batch-1');
+  });
+});
+
+describe('GET /api/shipments/batches', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  test('lists batch history for admin', async () => {
+    mockQueryImplementation([
+      [
+        /^SELECT B\.ID/,
+        { rows: [{ id: 'batch-1', shipped_at: '2026-01-01', received_at: null, packages_count: '3' }] },
+      ],
+    ]);
+
+    const response = await request(app)
+      .get('/api/shipments/batches')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+  });
 });

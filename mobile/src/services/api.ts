@@ -65,6 +65,8 @@ export const shipmentsAPI = {
   distributionList: () => api.get('/api/shipments/distribution'),
   updateDistributionStatus: (id: string, status: string) =>
     api.patch(`/api/shipments/${id}/distribution-status`, { status }),
+  closeBatch: () => api.post('/api/shipments/close-batch'),
+  batches: () => api.get('/api/shipments/batches'),
 };
 
 export type CreateOrderPayload = {

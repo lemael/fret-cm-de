@@ -254,8 +254,63 @@ router.patch('/:id/distribution-status', requireRole('gestionnaire'), async (req
       `UPDATE shipments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
       [status, req.params.id]
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Dossier introuvable' });
-    res.json(result.rows[0]);
+    const shipment = result.rows[0];
+    if (!shipment) return res.status(404).json({ error: 'Dossier introuvable' });
+
+    // Le premier colis d'un envoi qui arrive au Cameroun marque tout l'envoi comme reçu.
+    if (status === 'COLIS_EXISTANT' && shipment.batch_id) {
+      await pool.query(
+        'UPDATE shipment_batches SET received_at = NOW() WHERE id = $1 AND received_at IS NULL',
+        [shipment.batch_id]
+      );
+    }
+
+    res.json(shipment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/shipments/close-batch — clôture la liste de colis prêts pour le Cameroun (admin)
+router.post('/close-batch', auth, async (_req, res) => {
+  try {
+    const readyResult = await pool.query(
+      `SELECT id FROM shipments WHERE status = 'COLIS_PRET_ENVOI_CM' AND batch_id IS NULL`
+    );
+    if (readyResult.rows.length === 0) {
+      return res.status(400).json({ error: "Aucun colis prêt à l'envoi" });
+    }
+
+    const batchResult = await pool.query(
+      'INSERT INTO shipment_batches DEFAULT VALUES RETURNING *'
+    );
+    const batch = batchResult.rows[0];
+
+    await pool.query(
+      `UPDATE shipments SET batch_id = $1 WHERE status = 'COLIS_PRET_ENVOI_CM' AND batch_id IS NULL`,
+      [batch.id]
+    );
+
+    res.status(201).json({ batch, packagesCount: readyResult.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/shipments/batches — historique des envois groupés (admin)
+router.get('/batches', auth, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.id, b.shipped_at, b.received_at, COUNT(s.id) AS packages_count
+       FROM shipment_batches b
+       LEFT JOIN shipments s ON s.batch_id = b.id
+       GROUP BY b.id
+       ORDER BY b.shipped_at DESC
+       LIMIT 20`
+    );
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });

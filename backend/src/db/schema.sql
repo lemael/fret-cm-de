@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS gestionnaires (
 );
 
 -- ─────────────────────────────────────────
+-- Envois groupés (clôture de la liste de colis complète vers le Cameroun)
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS shipment_batches (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shipped_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+  received_at TIMESTAMP,
+  created_at  TIMESTAMP DEFAULT NOW()
+);
+
+-- ─────────────────────────────────────────
 -- Dossiers / expéditions
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS shipments (
@@ -65,6 +75,7 @@ CREATE TABLE IF NOT EXISTS shipments (
   delivery_address     TEXT,
   source               VARCHAR(20) NOT NULL DEFAULT 'ADMIN_PARSED'
                           CHECK (source IN ('ADMIN_PARSED','CLIENT_APP')),
+  batch_id       UUID REFERENCES shipment_batches(id) ON DELETE SET NULL,
   created_at     TIMESTAMP DEFAULT NOW(),
   updated_at     TIMESTAMP DEFAULT NOW()
 );
@@ -74,6 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_shipments_client ON shipments(client_id);
 CREATE INDEX IF NOT EXISTS idx_shipments_phase  ON shipments(phase);
 CREATE INDEX IF NOT EXISTS idx_shipments_status ON shipments(status);
 CREATE INDEX IF NOT EXISTS idx_shipments_departure_date ON shipments(departure_date);
+CREATE INDEX IF NOT EXISTS idx_shipments_batch ON shipments(batch_id);
 
 -- ─────────────────────────────────────────
 -- Workflow transit admin (etat UI persiste)

@@ -11,6 +11,7 @@
     "migrate:portal": "node src/scripts/migrate-client-portal.js",
     "migrate:messages-gestionnaire": "node src/scripts/migrate-messages-gestionnaire.js",
     "migrate:announcements": "node src/scripts/migrate-announcements.js",
+    "migrate:batches": "node src/scripts/migrate-shipment-batches.js",
     "create:gestionnaire": "node src/scripts/create-gestionnaire.js"
   },
   "dependencies": {

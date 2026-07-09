@@ -36,6 +36,7 @@ export default function IncomingOrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -56,6 +57,23 @@ export default function IncomingOrdersScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchOrders();
+  };
+
+  const handleCloseBatch = async () => {
+    setClosing(true);
+    try {
+      const res = await shipmentsAPI.closeBatch();
+      Alert.alert(
+        'Envoi clôturé',
+        `${res.data.packagesCount} colis clôturés pour l'envoi au Cameroun.`
+      );
+      await fetchOrders();
+    } catch (err: any) {
+      const message = err?.response?.data?.error || "Impossible de clôturer l'envoi";
+      Alert.alert('Erreur', message);
+    } finally {
+      setClosing(false);
+    }
   };
 
   const changeStatus = (order: Order) => {
@@ -83,6 +101,18 @@ export default function IncomingOrdersScreen() {
     >
       <Text style={styles.title}>Réception des commandes</Text>
       <Text style={styles.subtitle}>Commandes soumises directement par les clients.</Text>
+
+      <TouchableOpacity
+        style={[styles.closeBatchButton, closing && styles.buttonDisabled]}
+        onPress={handleCloseBatch}
+        disabled={closing}
+      >
+        {closing ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.closeBatchButtonText}>Liste de colis complet</Text>
+        )}
+      </TouchableOpacity>
 
       <View style={styles.table}>
         <View style={styles.headerRow}>
@@ -130,6 +160,19 @@ const styles = StyleSheet.create({
     color: '#5f6a65',
     fontSize: 13,
   },
+  closeBatchButton: {
+    marginTop: 16,
+    backgroundColor: '#b75d4b',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  closeBatchButtonText: {
+    color: '#fffaf2',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  buttonDisabled: { opacity: 0.7 },
   table: {
     marginTop: 18,
     backgroundColor: '#fffaf2',
