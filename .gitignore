@@ -21,6 +21,3 @@ mobile/android/local.properties
 mobile/android/**/.cxx/
 mobile/android/*.iml
 mobile/android/.idea/
-
-# APK publié — hébergé sur Railway via `railway up`, pas besoin dans Git
-web/public/updates/*.apk
