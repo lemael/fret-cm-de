@@ -6,6 +6,7 @@ dist/
 *.log
 .expo/
 web/next-env.d.ts
+web/tsconfig.tsbuildinfo
 
 # Secrets de signature Android — ne jamais committer
 mobile/android/keystore.properties
