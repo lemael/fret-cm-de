@@ -10,61 +10,58 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { notificationsAPI } from '../services/api';
+import { clientNotificationsAPI } from '../services/api';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'OrderDetail'>;
 
-type Notification = {
+type NotificationItem = {
+  type: 'MESSAGE' | 'ANNOUNCEMENT';
   id: string;
-  type: string;
+  shipmentId?: string;
   title: string;
-  body: string | null;
-  related_shipment_id: string | null;
-  is_read: boolean;
-  created_at: string;
+  body: string;
+  createdAt: string;
 };
 
 const POLL_INTERVAL_MS = 30000;
 
-export default function NotificationBell() {
+export default function ClientNotificationBell() {
   const navigation = useNavigation<Nav>();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchSummary = useCallback(async () => {
     try {
-      const res = await notificationsAPI.list();
-      setNotifications(res.data.notifications);
+      const res = await clientNotificationsAPI.summary();
+      setItems(res.data.items);
       setUnreadCount(res.data.unreadCount);
     } catch {
-      // On garde silencieusement l'état precedent si le polling echoue.
+      // On garde silencieusement l'état précédent si le polling échoue.
     }
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
+    fetchSummary();
+    const interval = setInterval(fetchSummary, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchSummary]);
 
   const openPanel = async () => {
     setVisible(true);
     setLoading(true);
-    await fetchNotifications();
+    await fetchSummary();
+    // Les annonces sont considérées comme vues dès qu'elles sont affichées ici.
+    await clientNotificationsAPI.markAnnouncementsSeen();
     setLoading(false);
   };
 
-  const handlePressNotification = async (notification: Notification) => {
-    if (!notification.is_read) {
-      await notificationsAPI.markRead(notification.id);
-      await fetchNotifications();
-    }
+  const handlePressItem = (item: NotificationItem) => {
     setVisible(false);
-    if (notification.related_shipment_id) {
-      navigation.navigate('OrderDetail', { shipmentId: notification.related_shipment_id });
+    if (item.type === 'MESSAGE' && item.shipmentId) {
+      navigation.navigate('OrderDetail', { shipmentId: item.shipmentId });
     }
   };
 
@@ -91,21 +88,22 @@ export default function NotificationBell() {
 
             {loading ? (
               <ActivityIndicator size="large" color="#17332c" style={{ marginTop: 20 }} />
-            ) : notifications.length === 0 ? (
+            ) : items.length === 0 ? (
               <Text style={styles.emptyText}>Aucune notification</Text>
             ) : (
               <ScrollView style={styles.list}>
-                {notifications.map((notification) => (
+                {items.map((item) => (
                   <TouchableOpacity
-                    key={notification.id}
-                    style={[styles.item, !notification.is_read && styles.itemUnread]}
-                    onPress={() => handlePressNotification(notification)}
+                    key={`${item.type}-${item.id}`}
+                    style={styles.item}
+                    onPress={() => handlePressItem(item)}
                   >
-                    <Text style={styles.itemTitle}>{notification.title}</Text>
-                    {notification.body ? <Text style={styles.itemBody}>{notification.body}</Text> : null}
-                    <Text style={styles.itemDate}>
-                      {new Date(notification.created_at).toLocaleString('fr-FR')}
+                    <Text style={styles.itemTitle}>
+                      {item.type === 'ANNOUNCEMENT' ? '📢 ' : '💬 '}
+                      {item.title}
                     </Text>
+                    <Text style={styles.itemBody}>{item.body}</Text>
+                    <Text style={styles.itemDate}>{new Date(item.createdAt).toLocaleString('fr-FR')}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -193,10 +191,6 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
     backgroundColor: '#f6f1e8',
-  },
-  itemUnread: {
-    borderWidth: 1,
-    borderColor: '#b75d4b',
   },
   itemTitle: {
     color: '#17332c',

@@ -557,14 +557,17 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {isTransitStarted ? (
-          <TouchableOpacity
-            style={styles.primaryAction}
-            onPress={() => navigation.navigate('ParseMessage', {})}
-          >
-            <Text style={styles.primaryActionText}>Analyser un nouveau message</Text>
+        <View style={styles.navLinksRow}>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('IncomingOrders')}>
+            <Text style={styles.navLinkText}>Réception des commandes</Text>
           </TouchableOpacity>
-        ) : null}
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Distribution')}>
+            <Text style={styles.navLinkText}>Arrivée des colis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Announcements')}>
+            <Text style={styles.navLinkText}>Voir les annonces</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.panel}>
@@ -790,6 +793,21 @@ const styles = StyleSheet.create({
     color: '#fffaf2',
     fontSize: 15,
     fontWeight: '800',
+  },
+  navLinksRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  navLink: {
+    alignSelf: 'flex-start',
+  },
+  navLinkText: {
+    color: '#d2e0da',
+    textDecorationLine: 'underline',
+    fontSize: 13,
+    fontWeight: '700',
   },
   panel: {
     marginTop: 16,

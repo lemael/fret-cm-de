@@ -107,6 +107,45 @@ describe('POST /api/auth/client/login', () => {
   });
 });
 
+describe('POST /api/auth/client/forgot-password', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  test('returns 400 when a field is missing', async () => {
+    const response = await request(app)
+      .post('/api/auth/client/forgot-password')
+      .send({ phone: '+237600000000', name: 'Jean' });
+
+    expect(response.status).toBe(400);
+  });
+
+  test('returns 404 when phone/name do not match a client', async () => {
+    mockQueryImplementation([[/^SELECT ID FROM CLIENTS/, { rows: [] }]]);
+
+    const response = await request(app)
+      .post('/api/auth/client/forgot-password')
+      .send({ phone: '+237600000000', name: 'Jean', newPassword: 'NouveauPass123' });
+
+    expect(response.status).toBe(404);
+  });
+
+  test('resets the password when phone/name match', async () => {
+    mockQueryImplementation([
+      [/^SELECT ID FROM CLIENTS/, { rows: [{ id: 'client-1' }] }],
+      [/^UPDATE CLIENTS/, { rowCount: 1 }],
+    ]);
+
+    const response = await request(app)
+      .post('/api/auth/client/forgot-password')
+      .send({ phone: '+237600000000', name: 'Jean', newPassword: 'NouveauPass123' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true });
+  });
+});
+
 describe('POST /api/auth/gestionnaire/login', () => {
   beforeEach(() => {
     jest.clearAllMocks();

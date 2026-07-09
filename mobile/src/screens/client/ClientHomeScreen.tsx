@@ -11,7 +11,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
-import { ordersAPI } from '../../services/api';
+import { ordersAPI, announcementsAPI, clientNotificationsAPI } from '../../services/api';
+import ClientNotificationBell from '../../components/ClientNotificationBell';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ClientHome'>;
@@ -26,15 +27,21 @@ type Order = {
   created_at: string;
 };
 
+type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+};
+
 const STATUS_LABELS: Record<string, string> = {
-  EN_ATTENTE_VALIDATION: 'En attente de validation',
-  EN_ATTENTE_CHARGEMENT: 'En attente chargement',
-  PRET_A_PARTIR: 'Prêt à partir',
-  EN_MER: 'En mer',
-  TRACKING_EN_COURS: 'Tracking en cours',
-  EN_DISTRIBUTION: 'En distribution',
-  DISTRIBUE: 'Distribué',
-  LIVRE: 'Livré',
+  COLIS_NON_RECU: 'Colis pas encore reçu',
+  COLIS_RECU: 'Colis bien reçu',
+  COLIS_REJETE: 'Colis rejeté',
+  COLIS_PRET_ENVOI_CM: "Colis prêt à l'envoi au Cameroun",
+  COLIS_EXISTANT: 'Colis existant',
+  COLIS_BIEN_ENVOYE: 'Colis bien envoyé',
+  COLIS_INTROUVABLE: 'Colis introuvable',
 };
 
 const formatStatus = (status: string) => STATUS_LABELS[status] || status.replaceAll('_', ' ');
@@ -43,6 +50,7 @@ export default function ClientHomeScreen() {
   const navigation = useNavigation<Nav>();
   const { logout } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -58,13 +66,26 @@ export default function ClientHomeScreen() {
     }
   }, []);
 
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      const res = await announcementsAPI.list();
+      setAnnouncements(res.data);
+      // Les annonces affichées sur le dashboard sont considérées comme vues.
+      await clientNotificationsAPI.markAnnouncementsSeen();
+    } catch {
+      setAnnouncements([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    fetchAnnouncements();
+  }, [fetchOrders, fetchAnnouncements]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchOrders();
+    fetchAnnouncements();
   };
 
   return (
@@ -76,9 +97,12 @@ export default function ClientHomeScreen() {
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <Text style={styles.heroTitle}>Mes commandes</Text>
-          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-            <Text style={styles.logoutText}>Déconnexion</Text>
-          </TouchableOpacity>
+          <View style={styles.heroActions}>
+            <ClientNotificationBell />
+            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+              <Text style={styles.logoutText}>Déconnexion</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -88,6 +112,21 @@ export default function ClientHomeScreen() {
           <Text style={styles.primaryActionText}>Nouvelle commande</Text>
         </TouchableOpacity>
       </View>
+
+      {announcements.length > 0 ? (
+        <View style={styles.announcementsSection}>
+          <Text style={styles.sectionTitle}>Annonces</Text>
+          {announcements.map((announcement) => (
+            <View key={announcement.id} style={styles.announcementCard}>
+              <Text style={styles.announcementTitle}>{announcement.title}</Text>
+              <Text style={styles.announcementBody}>{announcement.body}</Text>
+              <Text style={styles.announcementDate}>
+                {new Date(announcement.created_at).toLocaleDateString('fr-FR')}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator size="large" color="#0f4c5c" style={{ marginTop: 40 }} />
@@ -145,6 +184,11 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '800',
   },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   logoutButton: {
     backgroundColor: 'rgba(255, 250, 242, 0.15)',
     borderWidth: 1,
@@ -190,6 +234,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginTop: 8,
+  },
+  announcementsSection: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    color: '#17332c',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  announcementCard: {
+    backgroundColor: '#fdf0e3',
+    borderWidth: 1,
+    borderColor: '#f0dcc0',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
+  },
+  announcementTitle: {
+    color: '#7d4b1a',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  announcementBody: {
+    marginTop: 6,
+    color: '#5f6a65',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  announcementDate: {
+    marginTop: 8,
+    color: '#8a8c86',
+    fontSize: 11,
   },
   list: {
     marginTop: 18,

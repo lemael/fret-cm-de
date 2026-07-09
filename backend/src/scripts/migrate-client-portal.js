@@ -38,7 +38,7 @@ async function run() {
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         shipment_id UUID NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
         client_id   UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-        sender_role VARCHAR(10) NOT NULL CHECK (sender_role IN ('CLIENT','ADMIN')),
+        sender_role VARCHAR(15) NOT NULL CHECK (sender_role IN ('CLIENT','ADMIN','GESTIONNAIRE')),
         body        TEXT NOT NULL,
         is_read     BOOLEAN NOT NULL DEFAULT FALSE,
         created_at  TIMESTAMP DEFAULT NOW()

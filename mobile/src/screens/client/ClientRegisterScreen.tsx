@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { authAPI } from '../../services/api';
+import PasswordInput from '../../components/PasswordInput';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ClientRegister'>;
@@ -73,13 +74,12 @@ export default function ClientRegisterScreen() {
         keyboardType="phone-pad"
         autoCapitalize="none"
       />
-      <TextInput
+      <PasswordInput
         style={styles.input}
         placeholder="Mot de passe"
         placeholderTextColor="#94a3b8"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
       />
 
       <TouchableOpacity
@@ -94,7 +94,7 @@ export default function ClientRegisterScreen() {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.link} onPress={() => navigation.navigate('ClientLogin')}>
+      <TouchableOpacity style={styles.link} onPress={() => navigation.navigate('Login')}>
         <Text style={styles.linkText}>J'ai déjà un compte</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>

@@ -11,6 +11,7 @@ import axios from 'axios';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { authAPI } from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ResetPassword'>;
@@ -103,7 +104,7 @@ export default function ResetPasswordScreen() {
         autoCorrect={false}
       />
 
-      <TextInput
+      <PasswordInput
         style={styles.input}
         placeholder="Nouveau mot de passe"
         placeholderTextColor="#94a3b8"
@@ -112,10 +113,9 @@ export default function ResetPasswordScreen() {
           setNewPassword(value);
           if (errorMessage) setErrorMessage(null);
         }}
-        secureTextEntry
       />
 
-      <TextInput
+      <PasswordInput
         style={styles.input}
         placeholder="Confirmer le mot de passe"
         placeholderTextColor="#94a3b8"
@@ -124,7 +124,6 @@ export default function ResetPasswordScreen() {
           setConfirmPassword(value);
           if (errorMessage) setErrorMessage(null);
         }}
-        secureTextEntry
       />
 
       {errorMessage ? (

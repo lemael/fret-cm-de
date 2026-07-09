@@ -1,21 +1,31 @@
 const express = require('express');
 const pool = require('../config/db');
-const auth = require('../middleware/auth');
+const { authenticateAny } = require('../middleware/auth');
 const { ensureNotificationsTable } = require('../db/ensureTables');
 
 const router = express.Router();
 
-// GET /api/notifications — cloche admin
+const STAFF_ROLES = new Set(['admin', 'gestionnaire']);
+
+// Notifications partagées entre admin et gestionnaire (ex: nouveau message client).
+const auth = (req, res, next) => {
+  authenticateAny(req, res, () => {
+    if (!STAFF_ROLES.has(req.user.role)) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    next();
+  });
+};
+
+// GET /api/notifications — cloche admin + gestionnaire
 router.get('/', auth, async (_req, res) => {
   try {
     await ensureNotificationsTable();
 
     const [listResult, unreadResult] = await Promise.all([
       pool.query(
-        `SELECT n.*, s.client_id
-         FROM notifications n
-         LEFT JOIN shipments s ON s.id = n.related_shipment_id
-         ORDER BY n.created_at DESC
+        `SELECT * FROM notifications
+         ORDER BY created_at DESC
          LIMIT 50`
       ),
       pool.query('SELECT COUNT(*) FROM notifications WHERE is_read = FALSE'),

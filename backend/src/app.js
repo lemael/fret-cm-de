@@ -10,6 +10,8 @@ const messageRoutes = require('./routes/messages');
 const disputeRoutes = require('./routes/disputes');
 const financeRoutes = require('./routes/finance');
 const notificationRoutes = require('./routes/notifications');
+const announcementRoutes = require('./routes/announcements');
+const clientNotificationRoutes = require('./routes/clientNotifications');
 
 const app = express();
 
@@ -25,6 +27,8 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/disputes', disputeRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/client-notifications', clientNotificationRoutes);
 
 // Route publique (page client)
 app.use('/api/status', statusRoutes);

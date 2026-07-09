@@ -134,6 +134,40 @@ router.post('/client/register', async (req, res) => {
   }
 });
 
+// POST /api/auth/client/forgot-password
+// Vérifie que le téléphone et le nom fournis appartiennent au même client
+// (pas d'infra SMS/email : c'est le seul contrôle d'identité disponible).
+router.post('/client/forgot-password', async (req, res) => {
+  const { phone, name, newPassword } = req.body;
+  if (!phone || !name || !newPassword) {
+    return res.status(400).json({ error: 'Champs manquants' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
+  }
+
+  try {
+    await ensureClientPasswordColumn();
+
+    const result = await pool.query(
+      `SELECT id FROM clients WHERE phone = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+      [phone, name]
+    );
+    const client = result.rows[0];
+    if (!client) {
+      return res.status(404).json({ error: 'Numéro de téléphone ou nom incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE clients SET password_hash = $1 WHERE id = $2', [passwordHash, client.id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // POST /api/auth/client/login
 router.post('/client/login', async (req, res) => {
   const { phone, password } = req.body;

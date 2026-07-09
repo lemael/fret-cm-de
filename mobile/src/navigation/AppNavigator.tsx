@@ -4,35 +4,33 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
-import ProfileSelectScreen from '../screens/ProfileSelectScreen';
 import LoginScreen from '../screens/LoginScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
-import ParseMessageScreen from '../screens/ParseMessageScreen';
 import ClientDetailScreen from '../screens/ClientDetailScreen';
+import AnnouncementsScreen from '../screens/AnnouncementsScreen';
+import IncomingOrdersScreen from '../screens/IncomingOrdersScreen';
+import DistributionScreen from '../screens/DistributionScreen';
 
-import ClientLoginScreen from '../screens/client/ClientLoginScreen';
 import ClientRegisterScreen from '../screens/client/ClientRegisterScreen';
 import ClientHomeScreen from '../screens/client/ClientHomeScreen';
 import CreateOrderScreen from '../screens/client/CreateOrderScreen';
 import OrderDetailScreen from '../screens/client/OrderDetailScreen';
 
-import GestionnaireLoginScreen from '../screens/gestionnaire/GestionnaireLoginScreen';
 import FinanceDashboardScreen from '../screens/gestionnaire/FinanceDashboardScreen';
 import DisputesScreen from '../screens/gestionnaire/DisputesScreen';
 import DisputeDetailScreen from '../screens/gestionnaire/DisputeDetailScreen';
+import MessagesInboxScreen from '../screens/gestionnaire/MessagesInboxScreen';
 import { Dispute } from '../screens/gestionnaire/DisputesScreen';
 
 export type RootStackParamList = {
-  ProfileSelect: undefined;
   Login: undefined;
+  ForgotPassword: undefined;
   ResetPassword: undefined;
-  ClientLogin: undefined;
   ClientRegister: undefined;
-  GestionnaireLogin: undefined;
 
   Dashboard: undefined;
-  ParseMessage: { clientId?: string; phone?: string };
   ClientDetail: { clientId: string };
 
   ClientHome: undefined;
@@ -42,6 +40,10 @@ export type RootStackParamList = {
   FinanceDashboard: undefined;
   Disputes: undefined;
   DisputeDetail: { disputeId: string; dispute: Dispute };
+  MessagesInbox: undefined;
+  Announcements: undefined;
+  IncomingOrders: undefined;
+  Distribution: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -69,14 +71,14 @@ export default function AppNavigator() {
         {!token ? (
           <>
             <Stack.Screen
-              name="ProfileSelect"
-              component={ProfileSelectScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
               name="Login"
               component={LoginScreen}
               options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{ title: 'Mot de passe oublié' }}
             />
             <Stack.Screen
               name="ResetPassword"
@@ -84,18 +86,8 @@ export default function AppNavigator() {
               options={{ title: 'Modifier le mot de passe' }}
             />
             <Stack.Screen
-              name="ClientLogin"
-              component={ClientLoginScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
               name="ClientRegister"
               component={ClientRegisterScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="GestionnaireLogin"
-              component={GestionnaireLoginScreen}
               options={{ headerShown: false }}
             />
           </>
@@ -134,6 +126,26 @@ export default function AppNavigator() {
               component={DisputeDetailScreen}
               options={{ title: 'Détail du litige' }}
             />
+            <Stack.Screen
+              name="MessagesInbox"
+              component={MessagesInboxScreen}
+              options={{ title: 'Messages' }}
+            />
+            <Stack.Screen
+              name="OrderDetail"
+              component={OrderDetailScreen}
+              options={{ title: 'Conversation' }}
+            />
+            <Stack.Screen
+              name="Announcements"
+              component={AnnouncementsScreen}
+              options={{ title: 'Annonces' }}
+            />
+            <Stack.Screen
+              name="Distribution"
+              component={DistributionScreen}
+              options={{ title: 'Distribution des colis' }}
+            />
           </>
         ) : (
           <>
@@ -141,11 +153,6 @@ export default function AppNavigator() {
               name="Dashboard"
               component={DashboardScreen}
               options={{ title: 'Fret CM-DE' }}
-            />
-            <Stack.Screen
-              name="ParseMessage"
-              component={ParseMessageScreen}
-              options={{ title: 'Analyser un message' }}
             />
             <Stack.Screen
               name="ClientDetail"
@@ -156,6 +163,21 @@ export default function AppNavigator() {
               name="OrderDetail"
               component={OrderDetailScreen}
               options={{ title: 'Messages du dossier' }}
+            />
+            <Stack.Screen
+              name="Announcements"
+              component={AnnouncementsScreen}
+              options={{ title: 'Annonces' }}
+            />
+            <Stack.Screen
+              name="IncomingOrders"
+              component={IncomingOrdersScreen}
+              options={{ title: 'Réception des commandes' }}
+            />
+            <Stack.Screen
+              name="Distribution"
+              component={DistributionScreen}
+              options={{ title: 'Arrivée des colis' }}
             />
           </>
         )}

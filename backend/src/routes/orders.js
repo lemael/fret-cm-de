@@ -44,7 +44,7 @@ router.post('/', auth, async (req, res) => {
     const columns = await getShipmentsColumns();
 
     const insertColumns = ['client_id', 'category', 'status', 'tracking_token'];
-    const values = [req.client.id, 'SHIPMENT', 'EN_ATTENTE_VALIDATION', uuidv4()];
+    const values = [req.client.id, 'SHIPMENT', 'COLIS_NON_RECU', uuidv4()];
 
     const optionalColumns = {
       phase: 'LOADING',

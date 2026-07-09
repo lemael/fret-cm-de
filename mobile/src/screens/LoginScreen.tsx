@@ -11,30 +11,58 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, Role } from '../context/AuthContext';
 import { authAPI } from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
+// Un seul formulaire sert les 3 profils (client, gestionnaire, admin).
+// On essaie chaque connexion dans l'ordre jusqu'a ce qu'une reussisse.
+async function tryLogin(identifier: string, password: string): Promise<{ token: string; role: Role } | null> {
+  try {
+    const res = await authAPI.clientLogin(identifier, password);
+    return { token: res.data.token, role: 'client' };
+  } catch {
+    // pas un client, on essaie la suite
+  }
+
+  try {
+    const res = await authAPI.gestionnaireLogin(identifier, password);
+    return { token: res.data.token, role: 'gestionnaire' };
+  } catch {
+    // pas un gestionnaire, on essaie la suite
+  }
+
+  try {
+    const res = await authAPI.login(identifier, password);
+    return { token: res.data.token, role: 'admin' };
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginScreen() {
   const navigation = useNavigation<Nav>();
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
+    if (!identifier.trim() || !password.trim()) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
     setLoading(true);
     try {
-      const res = await authAPI.login(username.trim(), password);
-      await login(res.data.token, 'admin');
-    } catch {
-      Alert.alert('Connexion échouée', 'Identifiants incorrects');
+      const result = await tryLogin(identifier.trim(), password);
+      if (!result) {
+        Alert.alert('Connexion échouée', 'Identifiants incorrects');
+        return;
+      }
+      await login(result.token, result.role);
     } finally {
       setLoading(false);
     }
@@ -46,24 +74,23 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Text style={styles.title}>Fret CM-DE</Text>
-      <Text style={styles.subtitle}>Espace administrateur</Text>
+      <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
 
       <TextInput
         style={styles.input}
-        placeholder="Identifiant"
+        placeholder="Téléphone ou identifiant"
         placeholderTextColor="#94a3b8"
-        value={username}
-        onChangeText={setUsername}
+        value={identifier}
+        onChangeText={setIdentifier}
         autoCapitalize="none"
         autoCorrect={false}
       />
-      <TextInput
+      <PasswordInput
         style={styles.input}
         placeholder="Mot de passe"
         placeholderTextColor="#94a3b8"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
       />
 
       <TouchableOpacity
@@ -79,10 +106,17 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.resetLink}
-        onPress={() => navigation.navigate('ResetPassword')}
+        style={styles.link}
+        onPress={() => navigation.navigate('ClientRegister')}
       >
-        <Text style={styles.resetLinkText}>Modifier le mot de passe admin</Text>
+        <Text style={styles.linkText}>Vous n'avez pas de compte ?</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.link}
+        onPress={() => navigation.navigate('ForgotPassword')}
+      >
+        <Text style={styles.linkText}>Mot de passe oublié ?</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -124,11 +158,11 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.7 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  resetLink: {
-    marginTop: 18,
+  link: {
+    marginTop: 14,
     alignItems: 'center',
   },
-  resetLinkText: {
+  linkText: {
     color: '#dbeafe',
     textDecorationLine: 'underline',
     fontSize: 14,

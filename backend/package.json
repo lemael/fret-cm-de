@@ -9,6 +9,8 @@
     "migrate:phases": "node src/scripts/migrate-shipment-phases.js",
     "migrate:workflow": "node src/scripts/migrate-transit-workflow.js",
     "migrate:portal": "node src/scripts/migrate-client-portal.js",
+    "migrate:messages-gestionnaire": "node src/scripts/migrate-messages-gestionnaire.js",
+    "migrate:announcements": "node src/scripts/migrate-announcements.js",
     "create:gestionnaire": "node src/scripts/create-gestionnaire.js"
   },
   "dependencies": {

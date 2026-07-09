@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../../context/AuthContext';
 import { financeAPI } from '../../services/api';
+import NotificationBell from '../../components/NotificationBell';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'FinanceDashboard'>;
@@ -115,9 +116,12 @@ export default function FinanceDashboardScreen() {
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <Text style={styles.heroTitle}>Flux financiers</Text>
-          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-            <Text style={styles.logoutText}>Déconnexion</Text>
-          </TouchableOpacity>
+          <View style={styles.heroActions}>
+            <NotificationBell />
+            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+              <Text style={styles.logoutText}>Déconnexion</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -142,6 +146,15 @@ export default function FinanceDashboardScreen() {
         <View style={styles.navRow}>
           <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Disputes')}>
             <Text style={styles.navLinkText}>Voir les litiges</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('MessagesInbox')}>
+            <Text style={styles.navLinkText}>Voir les messages</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Distribution')}>
+            <Text style={styles.navLinkText}>Distribution des colis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Announcements')}>
+            <Text style={styles.navLinkText}>Voir les annonces</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -251,6 +264,11 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '800',
   },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   logoutButton: {
     backgroundColor: 'rgba(255, 250, 242, 0.15)',
     borderWidth: 1,
@@ -286,6 +304,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   navRow: {
+    flexDirection: 'row',
+    gap: 16,
     marginTop: 16,
   },
   navLink: {

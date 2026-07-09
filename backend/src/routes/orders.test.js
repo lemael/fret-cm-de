@@ -42,7 +42,7 @@ describe('POST /api/orders', () => {
     expect(response.status).toBe(400);
   });
 
-  test('creates a shipment with EN_ATTENTE_VALIDATION status', async () => {
+  test('creates a shipment with COLIS_NON_RECU status', async () => {
     mockQueryImplementation([
       [/^SELECT COLUMN_NAME/, {
         rows: [
@@ -51,7 +51,7 @@ describe('POST /api/orders', () => {
           'content_description', 'pickup_address', 'delivery_address', 'source',
         ].map((column_name) => ({ column_name })),
       }],
-      [/^INSERT INTO SHIPMENTS/, { rows: [{ id: 'shipment-1', status: 'EN_ATTENTE_VALIDATION', tracking_token: 'tok-1' }] }],
+      [/^INSERT INTO SHIPMENTS/, { rows: [{ id: 'shipment-1', status: 'COLIS_NON_RECU', tracking_token: 'tok-1' }] }],
       [/^SELECT NAME, PHONE FROM CLIENTS/, { rows: [{ name: 'Jean', phone: '+237600000000' }] }],
       [/^CREATE TABLE/, { rows: [] }],
       [/^INSERT INTO NOTIFICATIONS/, { rows: [] }],
@@ -71,7 +71,7 @@ describe('POST /api/orders', () => {
       });
 
     expect(response.status).toBe(201);
-    expect(response.body.shipment.status).toBe('EN_ATTENTE_VALIDATION');
+    expect(response.body.shipment.status).toBe('COLIS_NON_RECU');
     expect(response.body.statusLink).toContain('tok-1');
   });
 });

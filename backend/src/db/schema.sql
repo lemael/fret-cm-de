@@ -20,11 +20,12 @@ CREATE TABLE IF NOT EXISTS admins (
 -- lors de l'auto-inscription cliente.
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS clients (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone         VARCHAR(20) UNIQUE NOT NULL,
-  name          VARCHAR(100),
-  password_hash VARCHAR(255),
-  created_at    TIMESTAMP DEFAULT NOW()
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone                     VARCHAR(20) UNIQUE NOT NULL,
+  name                      VARCHAR(100),
+  password_hash             VARCHAR(255),
+  last_announcement_seen_at TIMESTAMP,
+  created_at                TIMESTAMP DEFAULT NOW()
 );
 
 -- ─────────────────────────────────────────
@@ -93,7 +94,7 @@ CREATE TABLE IF NOT EXISTS messages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   shipment_id UUID NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
   client_id   UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-  sender_role VARCHAR(10) NOT NULL CHECK (sender_role IN ('CLIENT','ADMIN')),
+  sender_role VARCHAR(15) NOT NULL CHECK (sender_role IN ('CLIENT','ADMIN','GESTIONNAIRE')),
   body        TEXT NOT NULL,
   is_read     BOOLEAN NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMP DEFAULT NOW()
@@ -155,6 +156,17 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+
+-- ─────────────────────────────────────────
+-- Annonces diffusées par l'admin ou le gestionnaire à tous les clients
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS announcements (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title       VARCHAR(150) NOT NULL,
+  body        TEXT NOT NULL,
+  author_role VARCHAR(15) NOT NULL CHECK (author_role IN ('ADMIN','GESTIONNAIRE')),
+  created_at  TIMESTAMP DEFAULT NOW()
+);
 
 -- ─────────────────────────────────────────
 -- Créer le premier admin

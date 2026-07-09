@@ -16,20 +16,34 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'CreateOrder'>;
 
+type ProductRow = { name: string; quantity: string };
+
+const emptyRow = (): ProductRow => ({ name: '', quantity: '1' });
+
 export default function CreateOrderScreen() {
   const navigation = useNavigation<Nav>();
   const [weightKg, setWeightKg] = useState('');
   const [lengthCm, setLengthCm] = useState('');
   const [widthCm, setWidthCm] = useState('');
   const [heightCm, setHeightCm] = useState('');
-  const [contentDescription, setContentDescription] = useState('');
+  const [products, setProducts] = useState<ProductRow[]>([emptyRow()]);
   const [pickupAddress, setPickupAddress] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const updateProduct = (index: number, field: keyof ProductRow, value: string) => {
+    setProducts((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const addProductRow = () => setProducts((rows) => [...rows, emptyRow()]);
+
+  const removeProductRow = (index: number) =>
+    setProducts((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
+
   const handleSubmit = async () => {
-    if (!weightKg.trim() || !contentDescription.trim() || !pickupAddress.trim() || !deliveryAddress.trim()) {
-      Alert.alert('Champs manquants', 'Poids, contenu et adresses sont obligatoires');
+    const validProducts = products.filter((p) => p.name.trim());
+    if (!weightKg.trim() || validProducts.length === 0 || !pickupAddress.trim() || !deliveryAddress.trim()) {
+      Alert.alert('Champs manquants', 'Poids, au moins un produit et les adresses sont obligatoires');
       return;
     }
     const weight = Number(weightKg.replace(',', '.'));
@@ -38,6 +52,10 @@ export default function CreateOrderScreen() {
       return;
     }
 
+    const contentDescription = validProducts
+      .map((p) => `${p.quantity.trim() || '1'}x ${p.name.trim()}`)
+      .join('\n');
+
     setLoading(true);
     try {
       await ordersAPI.create({
@@ -45,7 +63,7 @@ export default function CreateOrderScreen() {
         lengthCm: lengthCm ? Number(lengthCm.replace(',', '.')) : undefined,
         widthCm: widthCm ? Number(widthCm.replace(',', '.')) : undefined,
         heightCm: heightCm ? Number(heightCm.replace(',', '.')) : undefined,
-        contentDescription: contentDescription.trim(),
+        contentDescription,
         pickupAddress: pickupAddress.trim(),
         deliveryAddress: deliveryAddress.trim(),
       });
@@ -95,16 +113,33 @@ export default function CreateOrderScreen() {
         />
       </View>
 
-      <Text style={styles.label}>Contenu du colis *</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        placeholder="Ex: vêtements, chaussures..."
-        value={contentDescription}
-        onChangeText={setContentDescription}
-        multiline
-        numberOfLines={3}
-        textAlignVertical="top"
-      />
+      <Text style={styles.label}>Produits du colis *</Text>
+      {products.map((product, index) => (
+        <View key={index} style={styles.productRow}>
+          <TextInput
+            style={[styles.input, styles.productNameInput]}
+            placeholder="Ex: Chaussures"
+            value={product.name}
+            onChangeText={(value) => updateProduct(index, 'name', value)}
+          />
+          <TextInput
+            style={[styles.input, styles.productQtyInput]}
+            placeholder="Qté"
+            keyboardType="numeric"
+            value={product.quantity}
+            onChangeText={(value) => updateProduct(index, 'quantity', value)}
+          />
+          {products.length > 1 ? (
+            <TouchableOpacity style={styles.removeButton} onPress={() => removeProductRow(index)}>
+              <Text style={styles.removeButtonText}>✕</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ))}
+
+      <TouchableOpacity style={styles.addProductButton} onPress={addProductRow}>
+        <Text style={styles.addProductButtonText}>+ Ajouter un produit</Text>
+      </TouchableOpacity>
 
       <Text style={styles.label}>Adresse d'enlèvement *</Text>
       <TextInput
@@ -162,7 +197,40 @@ const styles = StyleSheet.create({
   rowInput: {
     flex: 1,
   },
-  textArea: { height: 90 },
+  productRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  productNameInput: {
+    flex: 2,
+  },
+  productQtyInput: {
+    flex: 1,
+  },
+  removeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#fee2e2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeButtonText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  addProductButton: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  addProductButtonText: {
+    color: '#1a56db',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   button: {
     backgroundColor: '#b75d4b',
     borderRadius: 10,

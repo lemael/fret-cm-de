@@ -38,6 +38,8 @@ export const authAPI = {
     api.post<{ token: string; client: any }>('/api/auth/client/register', { phone, password, name }),
   clientLogin: (phone: string, password: string) =>
     api.post<{ token: string; client: any }>('/api/auth/client/login', { phone, password }),
+  clientForgotPassword: (phone: string, name: string, newPassword: string) =>
+    api.post('/api/auth/client/forgot-password', { phone, name, newPassword }),
   gestionnaireLogin: (username: string, password: string) =>
     api.post<{ token: string; gestionnaire: any }>('/api/auth/gestionnaire/login', { username, password }),
 };
@@ -57,14 +59,12 @@ export const clientsAPI = {
 };
 
 export const shipmentsAPI = {
-  parse: (
-    phone: string,
-    rawMessage: string,
-    name?: string,
-    subject: 'SEND_PACKAGE' | 'OTHER' = 'OTHER'
-  ) => api.post('/api/shipments/parse', { phone, name, rawMessage, subject }),
   updateStatus: (id: string, status: string) =>
     api.patch(`/api/shipments/${id}/status`, { status }),
+  clientOrders: () => api.get('/api/shipments/client-orders'),
+  distributionList: () => api.get('/api/shipments/distribution'),
+  updateDistributionStatus: (id: string, status: string) =>
+    api.patch(`/api/shipments/${id}/distribution-status`, { status }),
 };
 
 export type CreateOrderPayload = {
@@ -83,6 +83,7 @@ export const ordersAPI = {
 };
 
 export const messagesAPI = {
+  inbox: () => api.get('/api/messages'),
   list: (shipmentId: string) => api.get(`/api/messages/${shipmentId}`),
   send: (shipmentId: string, text: string) => api.post(`/api/messages/${shipmentId}`, { text }),
 };
@@ -110,6 +111,16 @@ export const notificationsAPI = {
   list: () => api.get('/api/notifications'),
   markRead: (id: string) => api.patch(`/api/notifications/${id}/read`),
   markAllRead: () => api.patch('/api/notifications/read-all'),
+};
+
+export const announcementsAPI = {
+  list: () => api.get('/api/announcements'),
+  create: (title: string, body: string) => api.post('/api/announcements', { title, body }),
+};
+
+export const clientNotificationsAPI = {
+  summary: () => api.get('/api/client-notifications'),
+  markAnnouncementsSeen: () => api.patch('/api/client-notifications/mark-announcements-seen'),
 };
 
 export default api;

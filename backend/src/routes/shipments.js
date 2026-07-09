@@ -2,11 +2,18 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/db');
 const auth = require('../middleware/auth');
+const { authenticateAny, requireRole } = require('../middleware/auth');
 const { parseMessage, extractShipmentDetails } = require('../services/parser');
 
 const router = express.Router();
 
 const ALLOWED_PHASES = new Set(['LOADING', 'AT_SEA', 'DISTRIBUTION']);
+
+const STAFF_ROLES = new Set(['admin', 'gestionnaire']);
+
+// Distribution des colis au Cameroun (point de vue gestionnaire) — le gestionnaire
+// ne peut faire progresser un colis qu'à travers ces statuts.
+const DISTRIBUTION_STATUSES = new Set(['COLIS_PRET_ENVOI_CM', 'COLIS_EXISTANT', 'COLIS_BIEN_ENVOYE', 'COLIS_INTROUVABLE']);
 
 const inferPhaseFromStatus = (status) => {
   if (['DISTRIBUE', 'LIVRE', 'EN_DISTRIBUTION', 'EN_ATTENTE_DISTRIBUTION'].includes(status)) {
@@ -185,6 +192,67 @@ router.patch('/:id/status', auth, async (req, res) => {
        WHERE id = $${values.length}
        RETURNING *`,
       values
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Dossier introuvable' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/shipments/client-orders — réception des commandes soumises par les clients (admin)
+router.get('/client-orders', auth, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.id, s.status, s.tracking_token, s.content_description, s.created_at,
+              c.name AS client_name, c.phone AS client_phone
+       FROM shipments s
+       JOIN clients c ON c.id = s.client_id
+       WHERE s.source = 'CLIENT_APP'
+       ORDER BY s.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/shipments/distribution — colis en distribution au Cameroun (admin lecture, gestionnaire édition)
+router.get('/distribution', authenticateAny, async (req, res) => {
+  if (!STAFF_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT s.id, s.status, s.tracking_token, s.content_description, s.updated_at,
+              c.name AS client_name, c.phone AS client_phone
+       FROM shipments s
+       JOIN clients c ON c.id = s.client_id
+       WHERE s.status = ANY($1)
+       ORDER BY s.updated_at DESC`,
+      [[...DISTRIBUTION_STATUSES]]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/shipments/:id/distribution-status — le gestionnaire fait progresser un colis
+router.patch('/:id/distribution-status', requireRole('gestionnaire'), async (req, res) => {
+  const { status } = req.body;
+  if (!DISTRIBUTION_STATUSES.has(status)) {
+    return res.status(400).json({ error: 'Statut invalide' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE shipments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [status, req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Dossier introuvable' });
     res.json(result.rows[0]);

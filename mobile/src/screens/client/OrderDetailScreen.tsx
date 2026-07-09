@@ -12,19 +12,30 @@ import {
 } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { messagesAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type RouteType = RouteProp<RootStackParamList, 'OrderDetail'>;
 
 type Message = {
   id: string;
-  sender_role: 'CLIENT' | 'ADMIN';
+  sender_role: 'CLIENT' | 'ADMIN' | 'GESTIONNAIRE';
   body: string;
   created_at: string;
 };
 
+// Le client ne doit jamais savoir si c'est l'admin ou le gestionnaire qui a
+// répondu — seul le personnel voit la distinction entre les deux rôles.
+const getAuthorLabel = (senderRole: Message['sender_role'], viewerRole: string) => {
+  if (senderRole === viewerRole.toUpperCase()) return 'Vous';
+  if (senderRole === 'CLIENT') return 'Client';
+  if (viewerRole === 'client') return 'Support';
+  return senderRole === 'ADMIN' ? 'Administrateur' : 'Gestionnaire';
+};
+
 export default function OrderDetailScreen() {
   const route = useRoute<RouteType>();
+  const { role } = useAuth();
   const { shipmentId, order } = route.params;
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
@@ -81,25 +92,25 @@ export default function OrderDetailScreen() {
         ) : messages.length === 0 ? (
           <Text style={styles.emptyText}>Aucun message pour ce dossier.</Text>
         ) : (
-          messages.map((message) => (
-            <View
-              key={message.id}
-              style={[
-                styles.bubble,
-                message.sender_role === 'CLIENT' ? styles.bubbleClient : styles.bubbleAdmin,
-              ]}
-            >
-              <Text style={[styles.bubbleAuthor, message.sender_role === 'CLIENT' && styles.bubbleTextClient]}>
-                {message.sender_role === 'CLIENT' ? 'Vous' : 'Administrateur'}
-              </Text>
-              <Text style={[styles.bubbleText, message.sender_role === 'CLIENT' && styles.bubbleTextClient]}>
-                {message.body}
-              </Text>
-              <Text style={[styles.bubbleDate, message.sender_role === 'CLIENT' && styles.bubbleTextClient]}>
-                {new Date(message.created_at).toLocaleString('fr-FR')}
-              </Text>
-            </View>
-          ))
+          messages.map((message) => {
+            const isOwnMessage = role && message.sender_role === role.toUpperCase();
+            return (
+              <View
+                key={message.id}
+                style={[styles.bubble, isOwnMessage ? styles.bubbleOwn : styles.bubbleOther]}
+              >
+                <Text style={[styles.bubbleAuthor, isOwnMessage && styles.bubbleTextOwn]}>
+                  {getAuthorLabel(message.sender_role, role || 'client')}
+                </Text>
+                <Text style={[styles.bubbleText, isOwnMessage && styles.bubbleTextOwn]}>
+                  {message.body}
+                </Text>
+                <Text style={[styles.bubbleDate, isOwnMessage && styles.bubbleTextOwn]}>
+                  {new Date(message.created_at).toLocaleString('fr-FR')}
+                </Text>
+              </View>
+            );
+          })
         )}
       </ScrollView>
 
@@ -161,11 +172,11 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
   },
-  bubbleClient: {
+  bubbleOwn: {
     backgroundColor: '#b75d4b',
     alignSelf: 'flex-end',
   },
-  bubbleAdmin: {
+  bubbleOther: {
     backgroundColor: '#fffaf2',
     borderWidth: 1,
     borderColor: '#eadfce',
@@ -186,7 +197,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 6,
   },
-  bubbleTextClient: {
+  bubbleTextOwn: {
     color: '#fffaf2',
   },
   inputRow: {
