@@ -12,6 +12,9 @@ import ClientDetailScreen from '../screens/ClientDetailScreen';
 import AnnouncementsScreen from '../screens/AnnouncementsScreen';
 import IncomingOrdersScreen from '../screens/IncomingOrdersScreen';
 import DistributionScreen from '../screens/DistributionScreen';
+import PriceGridScreen from '../screens/PriceGridScreen';
+import ShippedHistoryScreen from '../screens/ShippedHistoryScreen';
+import SubscribedClientsScreen from '../screens/SubscribedClientsScreen';
 
 import ClientRegisterScreen from '../screens/client/ClientRegisterScreen';
 import ClientHomeScreen from '../screens/client/ClientHomeScreen';
@@ -22,6 +25,7 @@ import FinanceDashboardScreen from '../screens/gestionnaire/FinanceDashboardScre
 import DisputesScreen from '../screens/gestionnaire/DisputesScreen';
 import DisputeDetailScreen from '../screens/gestionnaire/DisputeDetailScreen';
 import MessagesInboxScreen from '../screens/gestionnaire/MessagesInboxScreen';
+import ConfirmationColisScreen from '../screens/gestionnaire/ConfirmationColisScreen';
 import { Dispute } from '../screens/gestionnaire/DisputesScreen';
 
 export type RootStackParamList = {
@@ -44,6 +48,10 @@ export type RootStackParamList = {
   Announcements: undefined;
   IncomingOrders: undefined;
   Distribution: undefined;
+  ConfirmationColis: undefined;
+  ShippedHistory: undefined;
+  SubscribedClients: undefined;
+  PriceGrid: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -108,6 +116,11 @@ export default function AppNavigator() {
               component={OrderDetailScreen}
               options={{ title: 'Ma commande' }}
             />
+            <Stack.Screen
+              name="PriceGrid"
+              component={PriceGridScreen}
+              options={{ title: 'Grille de prix' }}
+            />
           </>
         ) : role === 'gestionnaire' ? (
           <>
@@ -144,7 +157,27 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Distribution"
               component={DistributionScreen}
-              options={{ title: 'Distribution des colis' }}
+              options={{ title: 'Chargement des colis' }}
+            />
+            <Stack.Screen
+              name="ConfirmationColis"
+              component={ConfirmationColisScreen}
+              options={{ title: 'Confirmation de colis' }}
+            />
+            <Stack.Screen
+              name="ShippedHistory"
+              component={ShippedHistoryScreen}
+              options={{ title: "Historique d'envoi de colis" }}
+            />
+            <Stack.Screen
+              name="SubscribedClients"
+              component={SubscribedClientsScreen}
+              options={{ title: 'Clients abonnés' }}
+            />
+            <Stack.Screen
+              name="PriceGrid"
+              component={PriceGridScreen}
+              options={{ title: 'Grille de prix' }}
             />
           </>
         ) : (
@@ -178,6 +211,21 @@ export default function AppNavigator() {
               name="Distribution"
               component={DistributionScreen}
               options={{ title: 'Arrivée des colis' }}
+            />
+            <Stack.Screen
+              name="ShippedHistory"
+              component={ShippedHistoryScreen}
+              options={{ title: "Historique d'envoi de colis" }}
+            />
+            <Stack.Screen
+              name="SubscribedClients"
+              component={SubscribedClientsScreen}
+              options={{ title: 'Clients abonnés' }}
+            />
+            <Stack.Screen
+              name="PriceGrid"
+              component={PriceGridScreen}
+              options={{ title: 'Grille de prix' }}
             />
           </>
         )}

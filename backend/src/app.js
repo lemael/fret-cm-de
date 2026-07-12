@@ -12,6 +12,7 @@ const financeRoutes = require('./routes/finance');
 const notificationRoutes = require('./routes/notifications');
 const announcementRoutes = require('./routes/announcements');
 const clientNotificationRoutes = require('./routes/clientNotifications');
+const pricingRoutes = require('./routes/pricing');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/client-notifications', clientNotificationRoutes);
+app.use('/api/pricing', pricingRoutes);
 
 // Route publique (page client)
 app.use('/api/status', statusRoutes);

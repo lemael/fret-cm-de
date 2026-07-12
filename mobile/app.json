@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fret CM-DE",
     "slug": "fret-cm-de",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
@@ -14,7 +14,7 @@
         "backgroundColor": "#1a56db"
       },
       "package": "com.fretcmde.admin",
-      "versionCode": 3
+      "versionCode": 4
     },
     "ios": {
       "bundleIdentifier": "com.fretcmde.admin"

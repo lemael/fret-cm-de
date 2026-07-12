@@ -4,6 +4,8 @@ const pool = require('../config/db');
 const auth = require('../middleware/auth');
 const { authenticateAny, requireRole } = require('../middleware/auth');
 const { parseMessage, extractShipmentDetails } = require('../services/parser');
+const { computePriceEur, getPricingConfig, ensureSizeCategoryColumn } = require('../services/pricing');
+const { createAnnouncement } = require('./announcements');
 
 const router = express.Router();
 
@@ -23,6 +25,13 @@ const inferPhaseFromStatus = (status) => {
     return 'AT_SEA';
   }
   return 'LOADING';
+};
+
+let verifiedProductsColumnEnsured = false;
+const ensureVerifiedProductsColumn = async () => {
+  if (verifiedProductsColumnEnsured) return;
+  await pool.query('ALTER TABLE shipments ADD COLUMN IF NOT EXISTS verified_products JSONB');
+  verifiedProductsColumnEnsured = true;
 };
 
 let shipmentsColumnsCache = null;
@@ -204,38 +213,165 @@ router.patch('/:id/status', auth, async (req, res) => {
 // GET /api/shipments/client-orders — réception des commandes soumises par les clients (admin)
 router.get('/client-orders', auth, async (_req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT s.id, s.status, s.tracking_token, s.content_description, s.created_at,
-              c.name AS client_name, c.phone AS client_phone
-       FROM shipments s
-       JOIN clients c ON c.id = s.client_id
-       WHERE s.source = 'CLIENT_APP'
-       ORDER BY s.created_at DESC`
-    );
-    res.json(result.rows);
+    await ensureSizeCategoryColumn();
+    const [result, pricingConfig] = await Promise.all([
+      pool.query(
+        `SELECT s.id, s.status, s.tracking_token, s.content_description, s.created_at,
+                s.weight_kg, s.length_cm, s.width_cm, s.height_cm, s.size_category,
+                s.pickup_address, s.delivery_address,
+                c.name AS client_name, c.phone AS client_phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.source = 'CLIENT_APP' AND s.batch_id IS NULL
+         ORDER BY s.created_at DESC`
+      ),
+      getPricingConfig(),
+    ]);
+    const orders = result.rows.map((row) => ({
+      ...row,
+      price_eur: computePriceEur(row, pricingConfig),
+    }));
+    res.json(orders);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// GET /api/shipments/distribution — colis en distribution au Cameroun (admin lecture, gestionnaire édition)
+// GET /api/shipments/distribution — chargement/distribution des colis transférés par
+// l'admin (au Cameroun) — admin lecture, gestionnaire édition. Un colis apparaît ici
+// dès qu'il a été transféré (batch_id renseigné) et tant qu'il n'a pas été clôturé
+// (COLIS_BIEN_ENVOYE) — au-delà, il bascule dans l'historique d'envoi.
+// Sert aussi de source à "Confirmation de colis" (même lot, mêmes lignes).
 router.get('/distribution', authenticateAny, async (req, res) => {
   if (!STAFF_ROLES.has(req.user.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
 
   try {
+    await Promise.all([ensureSizeCategoryColumn(), ensureVerifiedProductsColumn()]);
+    const [result, pricingConfig] = await Promise.all([
+      pool.query(
+        `SELECT s.id, s.status, s.tracking_token, s.content_description, s.updated_at,
+                s.weight_kg, s.length_cm, s.width_cm, s.height_cm, s.size_category,
+                s.pickup_address, s.delivery_address, s.verified_products,
+                c.name AS client_name, c.phone AS client_phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.batch_id IS NOT NULL AND s.status != 'COLIS_BIEN_ENVOYE'
+         ORDER BY s.updated_at DESC`
+      ),
+      getPricingConfig(),
+    ]);
+    const parcels = result.rows.map((row) => ({
+      ...row,
+      price_eur: computePriceEur(row, pricingConfig),
+    }));
+    res.json(parcels);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/shipments/close-loading — "Clôture de chargement" (gestionnaire) : clôture
+// tous les colis du lot entièrement cochés dans "Confirmation de colis" (COLIS_BIEN_ENVOYE),
+// et publie une annonce pour les clients.
+router.post('/close-loading', requireRole('gestionnaire'), async (_req, res) => {
+  try {
+    await ensureVerifiedProductsColumn();
     const result = await pool.query(
-      `SELECT s.id, s.status, s.tracking_token, s.content_description, s.updated_at,
-              c.name AS client_name, c.phone AS client_phone
-       FROM shipments s
-       JOIN clients c ON c.id = s.client_id
-       WHERE s.status = ANY($1)
-       ORDER BY s.updated_at DESC`,
-      [[...DISTRIBUTION_STATUSES]]
+      `SELECT id, content_description, verified_products
+       FROM shipments
+       WHERE batch_id IS NOT NULL AND status != 'COLIS_BIEN_ENVOYE'`
     );
-    res.json(result.rows);
+
+    const fullyCheckedIds = result.rows
+      .filter((row) => {
+        const products = (row.content_description || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+        return (
+          products.length > 0 &&
+          Array.isArray(row.verified_products) &&
+          row.verified_products.length === products.length &&
+          row.verified_products.every((checked) => checked === true)
+        );
+      })
+      .map((row) => row.id);
+
+    if (fullyCheckedIds.length === 0) {
+      return res.status(400).json({ error: 'Aucun colis entièrement confirmé' });
+    }
+
+    await pool.query(
+      `UPDATE shipments SET status = 'COLIS_BIEN_ENVOYE', updated_at = NOW() WHERE id = ANY($1)`,
+      [fullyCheckedIds]
+    );
+
+    await createAnnouncement({
+      title: 'Chargement des colis',
+      body: 'Les colis sont chargés et prêts à l\'envoi.',
+      authorRole: 'GESTIONNAIRE',
+    });
+
+    res.status(201).json({ closedCount: fullyCheckedIds.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/shipments/shipped-history — historique des colis clôturés (envoyés)
+router.get('/shipped-history', authenticateAny, async (req, res) => {
+  if (!STAFF_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+
+  try {
+    await Promise.all([ensureSizeCategoryColumn(), ensureVerifiedProductsColumn()]);
+    const [result, pricingConfig] = await Promise.all([
+      pool.query(
+        `SELECT s.id, s.status, s.tracking_token, s.content_description, s.updated_at,
+                s.weight_kg, s.length_cm, s.width_cm, s.height_cm, s.size_category,
+                s.pickup_address, s.delivery_address, s.verified_products,
+                c.name AS client_name, c.phone AS client_phone
+         FROM shipments s
+         JOIN clients c ON c.id = s.client_id
+         WHERE s.status = 'COLIS_BIEN_ENVOYE'
+         ORDER BY s.updated_at DESC`
+      ),
+      getPricingConfig(),
+    ]);
+    const parcels = result.rows.map((row) => ({
+      ...row,
+      price_eur: computePriceEur(row, pricingConfig),
+    }));
+    res.json(parcels);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/shipments/:id/verified-products — le gestionnaire coche les produits
+// physiquement remis, pour les comparer à la commande déclarée par le client
+// ("Confirmation de colis").
+router.patch('/:id/verified-products', requireRole('gestionnaire'), async (req, res) => {
+  const { verifiedProducts } = req.body;
+  if (!Array.isArray(verifiedProducts) || !verifiedProducts.every((v) => typeof v === 'boolean')) {
+    return res.status(400).json({ error: 'Liste de cases à cocher invalide' });
+  }
+
+  try {
+    await ensureVerifiedProductsColumn();
+    const result = await pool.query(
+      `UPDATE shipments SET verified_products = $1 WHERE id = $2 RETURNING *`,
+      [JSON.stringify(verifiedProducts), req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Dossier introuvable' });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -272,14 +408,15 @@ router.patch('/:id/distribution-status', requireRole('gestionnaire'), async (req
   }
 });
 
-// POST /api/shipments/close-batch — clôture la liste de colis prêts pour le Cameroun (admin)
+// POST /api/shipments/close-batch — transfère au gestionnaire toutes les commandes
+// clients pas encore transférées (bouton "Transférer au gestionnaire", admin).
 router.post('/close-batch', auth, async (_req, res) => {
   try {
     const readyResult = await pool.query(
-      `SELECT id FROM shipments WHERE status = 'COLIS_PRET_ENVOI_CM' AND batch_id IS NULL`
+      `SELECT id FROM shipments WHERE source = 'CLIENT_APP' AND batch_id IS NULL`
     );
     if (readyResult.rows.length === 0) {
-      return res.status(400).json({ error: "Aucun colis prêt à l'envoi" });
+      return res.status(400).json({ error: 'Aucune commande à transférer' });
     }
 
     const batchResult = await pool.query(
@@ -288,7 +425,7 @@ router.post('/close-batch', auth, async (_req, res) => {
     const batch = batchResult.rows[0];
 
     await pool.query(
-      `UPDATE shipments SET batch_id = $1 WHERE status = 'COLIS_PRET_ENVOI_CM' AND batch_id IS NULL`,
+      `UPDATE shipments SET batch_id = $1 WHERE source = 'CLIENT_APP' AND batch_id IS NULL`,
       [batch.id]
     );
 

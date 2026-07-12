@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
 } from 'react-native';
 import { shipmentsAPI } from '../services/api';
 
@@ -19,24 +20,46 @@ type Order = {
   created_at: string;
   client_name: string | null;
   client_phone: string;
+  price_eur: number | null;
+  weight_kg: string | number | null;
+  size_category: string | null;
+  pickup_address: string | null;
+  delivery_address: string | null;
 };
 
-const STATUS_OPTIONS: { label: string; value: string }[] = [
-  { label: 'Colis pas encore reçu', value: 'COLIS_NON_RECU' },
-  { label: 'Colis bien reçu', value: 'COLIS_RECU' },
-  { label: 'Colis rejeté', value: 'COLIS_REJETE' },
-  { label: "Colis prêt à l'envoi au Cameroun", value: 'COLIS_PRET_ENVOI_CM' },
-];
+const formatPrice = (price: number | null) =>
+  price === null ? 'À définir' : `${price.toLocaleString('fr-FR')} €`;
 
-const STATUS_LABELS: Record<string, string> = Object.fromEntries(
-  STATUS_OPTIONS.map(({ label, value }) => [value, label])
-);
+const SIZE_CATEGORY_LABELS: Record<string, string> = {
+  XL: 'XL',
+  XXL: 'XXL',
+  VOLUMETRIC_1M3: '1 m³',
+  BULK_1000_1999: '1000 kg <= x <= 1999 kg',
+  BULK_2000_2999: '2000 kg <= x <= 2999 kg',
+  BULK_3000_PLUS: '3000 kg <= x',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  COLIS_NON_RECU: 'Colis pas encore reçu',
+  COLIS_RECU: 'Souhait du client',
+  COLIS_REJETE: 'Colis rejeté',
+  COLIS_PRET_ENVOI_CM: "Colis prêt à l'envoi au Cameroun",
+};
+
+const parseProductNames = (description: string | null) => {
+  if (!description) return [];
+  return description
+    .split('\n')
+    .map((line) => line.replace(/^\s*\d+(\.\d+)?\s*x\s*/i, '').trim())
+    .filter(Boolean);
+};
 
 export default function IncomingOrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -59,36 +82,30 @@ export default function IncomingOrdersScreen() {
     fetchOrders();
   };
 
-  const handleCloseBatch = async () => {
+  const handleTransferToGestionnaire = async () => {
     setClosing(true);
     try {
       const res = await shipmentsAPI.closeBatch();
       Alert.alert(
-        'Envoi clôturé',
-        `${res.data.packagesCount} colis clôturés pour l'envoi au Cameroun.`
+        'Envoi transféré',
+        `${res.data.packagesCount} colis transférés au gestionnaire.`
       );
       await fetchOrders();
     } catch (err: any) {
-      const message = err?.response?.data?.error || "Impossible de clôturer l'envoi";
+      const message = err?.response?.data?.error || 'Impossible de transférer la liste';
       Alert.alert('Erreur', message);
     } finally {
       setClosing(false);
     }
   };
 
-  const changeStatus = (order: Order) => {
+  const confirmTransfer = () => {
     Alert.alert(
-      'Changer le statut',
-      order.client_name || order.client_phone,
+      'Transférer au gestionnaire',
+      'Est-ce que la liste des commandes est déjà complète ?',
       [
-        ...STATUS_OPTIONS.map(({ label, value }) => ({
-          text: label,
-          onPress: async () => {
-            await shipmentsAPI.updateStatus(order.id, value);
-            await fetchOrders();
-          },
-        })),
-        { text: 'Annuler', style: 'cancel' as const },
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Confirmer', onPress: handleTransferToGestionnaire },
       ]
     );
   };
@@ -104,13 +121,13 @@ export default function IncomingOrdersScreen() {
 
       <TouchableOpacity
         style={[styles.closeBatchButton, closing && styles.buttonDisabled]}
-        onPress={handleCloseBatch}
+        onPress={confirmTransfer}
         disabled={closing}
       >
         {closing ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.closeBatchButtonText}>Liste de colis complet</Text>
+          <Text style={styles.closeBatchButtonText}>Transférer au gestionnaire</Text>
         )}
       </TouchableOpacity>
 
@@ -127,22 +144,82 @@ export default function IncomingOrdersScreen() {
           <Text style={styles.emptyText}>Aucune commande client pour le moment.</Text>
         ) : (
           orders.map((order) => (
-            <View key={order.id} style={styles.row}>
+            <TouchableOpacity
+              key={order.id}
+              style={styles.row}
+              onPress={() => setSelectedOrder(order)}
+            >
               <Text style={[styles.cell, styles.colName]} numberOfLines={1}>
                 {order.client_name || order.client_phone}
               </Text>
               <Text style={[styles.cell, styles.colNumber]} numberOfLines={1}>
                 {order.tracking_token.slice(0, 8)}
               </Text>
-              <TouchableOpacity style={styles.colStatus} onPress={() => changeStatus(order)}>
+              <View style={styles.colStatus}>
                 <Text style={styles.statusBadge} numberOfLines={2}>
                   {STATUS_LABELS[order.status] || order.status}
                 </Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
+
+      <Modal
+        visible={!!selectedOrder}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedOrder(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {selectedOrder?.client_name || selectedOrder?.client_phone}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              N° commande : {selectedOrder?.tracking_token.slice(0, 8)}
+            </Text>
+
+            <Text style={styles.modalFieldLabel}>Poids</Text>
+            <Text style={styles.modalFieldValue}>
+              {selectedOrder?.weight_kg ? `${selectedOrder.weight_kg} kg` : 'Non renseigné'}
+            </Text>
+
+            <Text style={styles.modalFieldLabel}>Taille du colis</Text>
+            <Text style={styles.modalFieldValue}>
+              {(selectedOrder?.size_category && SIZE_CATEGORY_LABELS[selectedOrder.size_category]) ||
+                'Non renseignée'}
+            </Text>
+
+            <Text style={styles.modalFieldLabel}>Prix</Text>
+            <Text style={styles.modalFieldValue}>{formatPrice(selectedOrder?.price_eur ?? null)}</Text>
+
+            <Text style={styles.modalSectionTitle}>Produits</Text>
+            {parseProductNames(selectedOrder?.content_description ?? null).length === 0 ? (
+              <Text style={styles.emptyText}>Aucun produit renseigné.</Text>
+            ) : (
+              parseProductNames(selectedOrder?.content_description ?? null).map((name, index) => (
+                <Text key={index} style={styles.productItem}>
+                  • {name}
+                </Text>
+              ))
+            )}
+
+            <Text style={styles.modalFieldLabel}>Adresse d'enlèvement</Text>
+            <Text style={styles.modalFieldValue}>{selectedOrder?.pickup_address || 'Non renseignée'}</Text>
+
+            <Text style={styles.modalFieldLabel}>Adresse de livraison</Text>
+            <Text style={styles.modalFieldValue}>{selectedOrder?.delivery_address || 'Non renseignée'}</Text>
+
+            <TouchableOpacity
+              style={styles.closeModalButton}
+              onPress={() => setSelectedOrder(null)}
+            >
+              <Text style={styles.closeModalButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -222,5 +299,66 @@ const styles = StyleSheet.create({
     padding: 16,
     color: '#6e7069',
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(23, 51, 44, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#fffaf2',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 28,
+  },
+  modalTitle: {
+    color: '#17332c',
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  modalSubtitle: {
+    marginTop: 4,
+    color: '#5f6a65',
+    fontSize: 13,
+    fontFamily: 'monospace',
+  },
+  modalFieldLabel: {
+    marginTop: 12,
+    color: '#374151',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  modalFieldValue: {
+    marginTop: 2,
+    color: '#17332c',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalSectionTitle: {
+    marginTop: 18,
+    marginBottom: 8,
+    color: '#17332c',
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  productItem: {
+    color: '#374151',
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  closeModalButton: {
+    marginTop: 20,
+    backgroundColor: '#17332c',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  closeModalButtonText: {
+    color: '#fffaf2',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });

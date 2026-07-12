@@ -151,10 +151,22 @@ export default function FinanceDashboardScreen() {
             <Text style={styles.navLinkText}>Voir les messages</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Distribution')}>
-            <Text style={styles.navLinkText}>Distribution des colis</Text>
+            <Text style={styles.navLinkText}>Chargement des colis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('ConfirmationColis')}>
+            <Text style={styles.navLinkText}>Confirmation de colis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('ShippedHistory')}>
+            <Text style={styles.navLinkText}>Historique d'envoi de colis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('SubscribedClients')}>
+            <Text style={styles.navLinkText}>Clients abonnés</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Announcements')}>
             <Text style={styles.navLinkText}>Voir les annonces</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('PriceGrid')}>
+            <Text style={styles.navLinkText}>Grille de prix</Text>
           </TouchableOpacity>
         </View>
       </View>

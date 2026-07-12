@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
 } from 'react-native';
 import { shipmentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +21,11 @@ type Parcel = {
   updated_at: string;
   client_name: string | null;
   client_phone: string;
+  weight_kg: string | number | null;
+  size_category: string | null;
+  pickup_address: string | null;
+  delivery_address: string | null;
+  price_eur: number | null;
 };
 
 const STATUS_OPTIONS: { label: string; value: string }[] = [
@@ -33,12 +39,33 @@ const STATUS_LABELS: Record<string, string> = Object.fromEntries(
   STATUS_OPTIONS.map(({ label, value }) => [value, label])
 );
 
+const SIZE_CATEGORY_LABELS: Record<string, string> = {
+  XL: 'XL',
+  XXL: 'XXL',
+  VOLUMETRIC_1M3: '1 m³',
+  BULK_1000_1999: '1000 kg <= x <= 1999 kg',
+  BULK_2000_2999: '2000 kg <= x <= 2999 kg',
+  BULK_3000_PLUS: '3000 kg <= x',
+};
+
+const formatPrice = (price: number | null) =>
+  price === null ? 'À définir' : `${price.toLocaleString('fr-FR')} €`;
+
+const parseProductNames = (description: string | null) => {
+  if (!description) return [];
+  return description
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+};
+
 export default function DistributionScreen() {
   const { role } = useAuth();
   const canEdit = role === 'gestionnaire';
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
 
   const fetchParcels = useCallback(async () => {
     try {
@@ -85,10 +112,10 @@ export default function DistributionScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
     >
-      <Text style={styles.title}>Distribution des colis</Text>
+      <Text style={styles.title}>{canEdit ? 'Chargement des colis' : 'Arrivée des colis'}</Text>
       <Text style={styles.subtitle}>
         {canEdit
-          ? 'Colis arrivés après transport — faites-les progresser jusqu\'à la remise au client.'
+          ? 'Commandes transférées par l\'administrateur — faites-les progresser jusqu\'à la remise au client.'
           : 'Suivi en lecture seule, mis à jour par le gestionnaire.'}
       </Text>
 
@@ -105,7 +132,11 @@ export default function DistributionScreen() {
           <Text style={styles.emptyText}>Aucun colis en distribution pour le moment.</Text>
         ) : (
           parcels.map((parcel) => (
-            <View key={parcel.id} style={styles.row}>
+            <TouchableOpacity
+              key={parcel.id}
+              style={styles.row}
+              onPress={() => setSelectedParcel(parcel)}
+            >
               <Text style={[styles.cell, styles.colName]} numberOfLines={1}>
                 {parcel.client_name || parcel.client_phone}
               </Text>
@@ -121,10 +152,66 @@ export default function DistributionScreen() {
                   {STATUS_LABELS[parcel.status] || parcel.status}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
+
+      <Modal
+        visible={!!selectedParcel}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedParcel(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {selectedParcel?.client_name || selectedParcel?.client_phone}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              N° commande : {selectedParcel?.tracking_token.slice(0, 8)}
+            </Text>
+
+            <Text style={styles.modalFieldLabel}>Poids</Text>
+            <Text style={styles.modalFieldValue}>
+              {selectedParcel?.weight_kg ? `${selectedParcel.weight_kg} kg` : 'Non renseigné'}
+            </Text>
+
+            <Text style={styles.modalFieldLabel}>Taille du colis</Text>
+            <Text style={styles.modalFieldValue}>
+              {(selectedParcel?.size_category && SIZE_CATEGORY_LABELS[selectedParcel.size_category]) ||
+                'Non renseignée'}
+            </Text>
+
+            <Text style={styles.modalFieldLabel}>Prix</Text>
+            <Text style={styles.modalFieldValue}>{formatPrice(selectedParcel?.price_eur ?? null)}</Text>
+
+            <Text style={styles.modalSectionTitle}>Produits</Text>
+            {parseProductNames(selectedParcel?.content_description ?? null).length === 0 ? (
+              <Text style={styles.emptyText}>Aucun produit renseigné.</Text>
+            ) : (
+              parseProductNames(selectedParcel?.content_description ?? null).map((name, index) => (
+                <Text key={index} style={styles.productItem}>
+                  • {name}
+                </Text>
+              ))
+            )}
+
+            <Text style={styles.modalFieldLabel}>Adresse d'enlèvement</Text>
+            <Text style={styles.modalFieldValue}>{selectedParcel?.pickup_address || 'Non renseignée'}</Text>
+
+            <Text style={styles.modalFieldLabel}>Adresse de livraison</Text>
+            <Text style={styles.modalFieldValue}>{selectedParcel?.delivery_address || 'Non renseignée'}</Text>
+
+            <TouchableOpacity
+              style={styles.closeModalButton}
+              onPress={() => setSelectedParcel(null)}
+            >
+              <Text style={styles.closeModalButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -192,5 +279,67 @@ const styles = StyleSheet.create({
     padding: 16,
     color: '#6e7069',
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(23, 51, 44, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#fffaf2',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 28,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    color: '#17332c',
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  modalSubtitle: {
+    marginTop: 4,
+    color: '#5f6a65',
+    fontSize: 13,
+    fontFamily: 'monospace',
+  },
+  modalFieldLabel: {
+    marginTop: 12,
+    color: '#374151',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  modalFieldValue: {
+    marginTop: 2,
+    color: '#17332c',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalSectionTitle: {
+    marginTop: 18,
+    marginBottom: 8,
+    color: '#17332c',
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  productItem: {
+    color: '#374151',
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  closeModalButton: {
+    marginTop: 20,
+    backgroundColor: '#17332c',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  closeModalButtonText: {
+    color: '#fffaf2',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });

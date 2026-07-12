@@ -1,8 +1,27 @@
 const express = require('express');
 const pool = require('../config/db');
 const auth = require('../middleware/auth');
+const { authenticateAny, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+const clientAuth = requireRole('client');
+const STAFF_ROLES = new Set(['admin', 'gestionnaire']);
+
+let subscriptionColumnsEnsured = false;
+const ensureSubscriptionColumns = async () => {
+  if (subscriptionColumnsEnsured) return;
+  await pool.query(`
+    ALTER TABLE clients
+      ADD COLUMN IF NOT EXISTS first_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS street VARCHAR(150),
+      ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS is_subscribed BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS subscribed_at TIMESTAMP
+  `);
+  subscriptionColumnsEnsured = true;
+};
 
 const PHASES = {
   LOADING: 'LOADING',
@@ -269,6 +288,97 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// GET /api/clients/subscribers — "Clients abonnés" (admin + gestionnaire)
+router.get('/subscribers', authenticateAny, async (req, res) => {
+  if (!STAFF_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+
+  try {
+    await ensureSubscriptionColumns();
+    const result = await pool.query(
+      `SELECT id, name, first_name, phone, street, postal_code, city, is_subscribed
+       FROM clients
+       ORDER BY name NULLS LAST, first_name NULLS LAST`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/clients/:id/subscription — l'admin bascule manuellement l'abonnement
+// d'un client depuis "Clients abonnés".
+router.patch('/:id/subscription', requireRole('admin'), async (req, res) => {
+  const { isSubscribed } = req.body;
+  if (typeof isSubscribed !== 'boolean') {
+    return res.status(400).json({ error: 'isSubscribed requis (boolean)' });
+  }
+
+  try {
+    await ensureSubscriptionColumns();
+    const result = await pool.query(
+      `UPDATE clients
+       SET is_subscribed = $1, subscribed_at = CASE WHEN $1 THEN NOW() ELSE NULL END
+       WHERE id = $2
+       RETURNING id, name, first_name, phone, street, postal_code, city, is_subscribed`,
+      [isSubscribed, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Client introuvable' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/clients/subscription-status — statut d'abonnement du client connecté
+router.get('/subscription-status', clientAuth, async (req, res) => {
+  try {
+    await ensureSubscriptionColumns();
+    const result = await pool.query(
+      `SELECT name, first_name, phone, street, postal_code, city, is_subscribed
+       FROM clients WHERE id = $1`,
+      [req.client.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Client introuvable' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/clients/subscribe — le client s'abonne (60€, cf. AGB Phiju Agency)
+router.post('/subscribe', clientAuth, async (req, res) => {
+  const { nom, prenom, street, postalCode, city, accepted } = req.body;
+
+  if (!nom || !nom.trim() || !prenom || !prenom.trim() || !street || !street.trim() ||
+      !postalCode || !postalCode.trim() || !city || !city.trim()) {
+    return res.status(400).json({ error: 'Tous les champs sont obligatoires' });
+  }
+  if (accepted !== true) {
+    return res.status(400).json({ error: "Vous devez accepter les conditions générales" });
+  }
+
+  try {
+    await ensureSubscriptionColumns();
+    const result = await pool.query(
+      `UPDATE clients
+       SET name = $1, first_name = $2, street = $3, postal_code = $4, city = $5,
+           is_subscribed = TRUE, subscribed_at = NOW()
+       WHERE id = $6
+       RETURNING name, first_name, phone, street, postal_code, city, is_subscribed`,
+      [nom.trim(), prenom.trim(), street.trim(), postalCode.trim(), city.trim(), req.client.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // GET /api/clients/:id  — détail client + ses dossiers
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -286,6 +396,19 @@ router.get('/:id', auth, async (req, res) => {
     );
 
     res.json({ client: clientResult.rows[0], shipments: shipmentsResult.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/clients/:id — supprime le compte d'un client (admin) : il perd tout
+// accès à l'app. Ses dossiers/messages sont supprimés en cascade (cf. schema.sql).
+router.delete('/:id', requireRole('admin'), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM clients WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Client introuvable' });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -312,3 +435,4 @@ router.post('/', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.ensureSubscriptionColumns = ensureSubscriptionColumns;

@@ -92,8 +92,17 @@ export default function DashboardScreen() {
           <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Distribution')}>
             <Text style={styles.navLinkText}>Arrivée des colis</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('ShippedHistory')}>
+            <Text style={styles.navLinkText}>Historique d'envoi de colis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('SubscribedClients')}>
+            <Text style={styles.navLinkText}>Clients abonnés</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Announcements')}>
             <Text style={styles.navLinkText}>Voir les annonces</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('PriceGrid')}>
+            <Text style={styles.navLinkText}>Grille de prix</Text>
           </TouchableOpacity>
         </View>
       </View>

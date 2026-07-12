@@ -5,6 +5,7 @@ dist/
 .next/
 *.log
 .expo/
+.claude/settings.local.json
 web/next-env.d.ts
 web/tsconfig.tsbuildinfo
 

@@ -3,8 +3,13 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+// EXPO_PUBLIC_API_URL permet de pointer vers un backend local en dev
+// (ex: `EXPO_PUBLIC_API_URL=http://localhost:3000 expo start --web`)
+// sans modifier app.json, qui reste la config de build de production.
 const API_URL =
-  Constants.expoConfig?.extra?.apiUrl ?? 'https://your-backend.railway.app';
+  process.env.EXPO_PUBLIC_API_URL ??
+  Constants.expoConfig?.extra?.apiUrl ??
+  'https://your-backend.railway.app';
 
 const api = axios.create({ baseURL: API_URL });
 
@@ -56,6 +61,19 @@ export const clientsAPI = {
   detail: (id: string) => api.get(`/api/clients/${id}`),
   create: (phone: string, name?: string) =>
     api.post('/api/clients', { phone, name }),
+  subscribers: () => api.get('/api/clients/subscribers'),
+  subscriptionStatus: () => api.get('/api/clients/subscription-status'),
+  subscribe: (payload: {
+    nom: string;
+    prenom: string;
+    street: string;
+    postalCode: string;
+    city: string;
+    accepted: boolean;
+  }) => api.post('/api/clients/subscribe', payload),
+  updateSubscription: (id: string, isSubscribed: boolean) =>
+    api.patch(`/api/clients/${id}/subscription`, { isSubscribed }),
+  remove: (id: string) => api.delete(`/api/clients/${id}`),
 };
 
 export const shipmentsAPI = {
@@ -65,15 +83,25 @@ export const shipmentsAPI = {
   distributionList: () => api.get('/api/shipments/distribution'),
   updateDistributionStatus: (id: string, status: string) =>
     api.patch(`/api/shipments/${id}/distribution-status`, { status }),
+  updateVerifiedProducts: (id: string, verifiedProducts: boolean[]) =>
+    api.patch(`/api/shipments/${id}/verified-products`, { verifiedProducts }),
   closeBatch: () => api.post('/api/shipments/close-batch'),
+  closeLoading: () => api.post('/api/shipments/close-loading'),
+  shippedHistory: () => api.get('/api/shipments/shipped-history'),
   batches: () => api.get('/api/shipments/batches'),
 };
 
+export type SizeCategory =
+  | 'XL'
+  | 'XXL'
+  | 'VOLUMETRIC_1M3'
+  | 'BULK_1000_1999'
+  | 'BULK_2000_2999'
+  | 'BULK_3000_PLUS';
+
 export type CreateOrderPayload = {
   weightKg: number;
-  lengthCm?: number;
-  widthCm?: number;
-  heightCm?: number;
+  sizeCategory: SizeCategory;
   contentDescription: string;
   pickupAddress: string;
   deliveryAddress: string;
@@ -123,6 +151,27 @@ export const announcementsAPI = {
 export const clientNotificationsAPI = {
   summary: () => api.get('/api/client-notifications'),
   markAnnouncementsSeen: () => api.patch('/api/client-notifications/mark-announcements-seen'),
+};
+
+export type PriceSizeTier = {
+  label: string;
+  maxSpanCm: number;
+  maxWeightKg: number;
+  priceEur: number;
+  bulkMinCartons: number;
+  bulkDiscountEur: number;
+};
+export type PriceBulkTier = { minWeightKg: number; pricePerKg: number };
+export type PriceVolumetricBracket = { minVolumeM3: number; maxWeightKg: number; priceEur: number };
+export type PricingConfig = {
+  sizeTiers: PriceSizeTier[];
+  bulkKgTiers: PriceBulkTier[];
+  volumetricBracket: PriceVolumetricBracket;
+};
+
+export const pricingAPI = {
+  get: () => api.get<PricingConfig>('/api/pricing'),
+  update: (config: PricingConfig) => api.put<PricingConfig>('/api/pricing', { config }),
 };
 
 export default api;

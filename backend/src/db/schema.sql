@@ -25,6 +25,14 @@ CREATE TABLE IF NOT EXISTS clients (
   name                      VARCHAR(100),
   password_hash             VARCHAR(255),
   last_announcement_seen_at TIMESTAMP,
+  -- Abonnement (inscription payante, 60€ — cf. AGB Phiju Agency) requis avant de
+  -- pouvoir soumettre une commande.
+  first_name                VARCHAR(100),
+  street                    VARCHAR(150),
+  postal_code               VARCHAR(20),
+  city                      VARCHAR(100),
+  is_subscribed             BOOLEAN NOT NULL DEFAULT FALSE,
+  subscribed_at             TIMESTAMP,
   created_at                TIMESTAMP DEFAULT NOW()
 );
 
@@ -71,8 +79,12 @@ CREATE TABLE IF NOT EXISTS shipments (
   width_cm            NUMERIC(10,2),
   height_cm           NUMERIC(10,2),
   content_description TEXT,
+  size_category        VARCHAR(30),
   pickup_address       TEXT,
   delivery_address     TEXT,
+  -- Cases cochées par le gestionnaire (Confirmation de colis), alignées par index
+  -- sur les lignes de content_description.
+  verified_products     JSONB,
   source               VARCHAR(20) NOT NULL DEFAULT 'ADMIN_PARSED'
                           CHECK (source IN ('ADMIN_PARSED','CLIENT_APP')),
   batch_id       UUID REFERENCES shipment_batches(id) ON DELETE SET NULL,

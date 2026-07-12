@@ -36,7 +36,7 @@ type Announcement = {
 
 const STATUS_LABELS: Record<string, string> = {
   COLIS_NON_RECU: 'Colis pas encore reçu',
-  COLIS_RECU: 'Colis bien reçu',
+  COLIS_RECU: 'En attente de traitement',
   COLIS_REJETE: 'Colis rejeté',
   COLIS_PRET_ENVOI_CM: "Colis prêt à l'envoi au Cameroun",
   COLIS_EXISTANT: 'Colis existant',
@@ -110,6 +110,10 @@ export default function ClientHomeScreen() {
           onPress={() => navigation.navigate('CreateOrder')}
         >
           <Text style={styles.primaryActionText}>Nouvelle commande</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('PriceGrid')}>
+          <Text style={styles.navLinkText}>Grille de prix</Text>
         </TouchableOpacity>
       </View>
 
@@ -213,6 +217,16 @@ const styles = StyleSheet.create({
     color: '#fffaf2',
     fontSize: 15,
     fontWeight: '800',
+  },
+  navLink: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+  },
+  navLinkText: {
+    color: '#d2e0da',
+    textDecorationLine: 'underline',
+    fontSize: 13,
+    fontWeight: '700',
   },
   emptyCard: {
     marginTop: 24,

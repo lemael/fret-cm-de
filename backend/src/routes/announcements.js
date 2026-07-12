@@ -21,6 +21,17 @@ const ensureAnnouncementsTable = async () => {
   announcementsTableEnsured = true;
 };
 
+// Réutilisable par d'autres routes (ex: clôture de chargement) pour publier une
+// annonce automatique sans passer par une requête HTTP.
+const createAnnouncement = async ({ title, body, authorRole }) => {
+  await ensureAnnouncementsTable();
+  const result = await pool.query(
+    `INSERT INTO announcements (title, body, author_role) VALUES ($1, $2, $3) RETURNING *`,
+    [title, body, authorRole]
+  );
+  return result.rows[0];
+};
+
 // GET /api/announcements — visible par les 3 profils
 router.get('/', authenticateAny, async (_req, res) => {
   try {
@@ -58,3 +69,4 @@ router.post('/', authenticateAny, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.createAnnouncement = createAnnouncement;
