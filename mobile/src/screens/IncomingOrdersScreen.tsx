@@ -9,8 +9,29 @@ import {
   RefreshControl,
   Alert,
   Modal,
+  Platform,
 } from 'react-native';
 import { shipmentsAPI } from '../services/api';
+
+// Alert.alert() ne fait rien sur Expo web (react-native-web ne l'implémente pas).
+const notify = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
+const confirm = (title: string, message: string, onConfirm: () => void) => {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+  } else {
+    Alert.alert(title, message, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Confirmer', onPress: onConfirm },
+    ]);
+  }
+};
 
 type Order = {
   id: string;
@@ -86,27 +107,24 @@ export default function IncomingOrdersScreen() {
     setClosing(true);
     try {
       const res = await shipmentsAPI.closeBatch();
-      Alert.alert(
+      notify(
         'Envoi transféré',
         `${res.data.packagesCount} colis transférés au gestionnaire.`
       );
       await fetchOrders();
     } catch (err: any) {
       const message = err?.response?.data?.error || 'Impossible de transférer la liste';
-      Alert.alert('Erreur', message);
+      notify('Erreur', message);
     } finally {
       setClosing(false);
     }
   };
 
   const confirmTransfer = () => {
-    Alert.alert(
+    confirm(
       'Transférer au gestionnaire',
       'Est-ce que la liste des commandes est déjà complète ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Confirmer', onPress: handleTransferToGestionnaire },
-      ]
+      handleTransferToGestionnaire
     );
   };
 

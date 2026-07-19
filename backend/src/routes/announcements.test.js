@@ -16,7 +16,7 @@ const gestionnaireToken = jwt.sign({ id: 'gest-1', username: 'gestionnaire', rol
 const mockQueryImplementation = (handlers) => {
   pool.query.mockImplementation((sql) => {
     const normalized = sql.trim().toUpperCase();
-    if (normalized.startsWith('CREATE TABLE')) {
+    if (normalized.startsWith('CREATE TABLE') || normalized.startsWith('ALTER TABLE')) {
       return Promise.resolve({ rows: [] });
     }
     for (const [matcher, result] of handlers) {

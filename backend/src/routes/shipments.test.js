@@ -259,6 +259,7 @@ describe('POST /api/shipments/close-loading', () => {
       ],
       [/^UPDATE SHIPMENTS/, { rowCount: 1 }],
       [/^CREATE TABLE IF NOT EXISTS ANNOUNCEMENTS/, { rows: [] }],
+      [/^ALTER TABLE ANNOUNCEMENTS/, { rows: [] }],
       [/^INSERT INTO ANNOUNCEMENTS/, { rows: [{ id: 'ann-1' }] }],
     ]);
 
@@ -274,7 +275,7 @@ describe('POST /api/shipments/close-loading', () => {
     );
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO announcements'),
-      ['Chargement des colis', "Les colis sont chargés et prêts à l'envoi.", 'GESTIONNAIRE']
+      ['Chargement des colis', "Les colis sont chargés et prêts à l'envoi.", 'GESTIONNAIRE', null, null]
     );
   });
 });

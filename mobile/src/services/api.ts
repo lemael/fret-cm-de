@@ -89,6 +89,15 @@ export const shipmentsAPI = {
   closeLoading: () => api.post('/api/shipments/close-loading'),
   shippedHistory: () => api.get('/api/shipments/shipped-history'),
   batches: () => api.get('/api/shipments/batches'),
+  currentBatch: () => api.get<CurrentBatchSummary>('/api/shipments/current-batch'),
+  reportIssue: (id: string, message: string) => api.post(`/api/shipments/${id}/report-issue`, { message }),
+};
+
+export type CurrentBatchSummary = {
+  shippedAt: string | null;
+  expectedCount: number;
+  confirmedCount: number;
+  loadingPercent: number;
 };
 
 export type SizeCategory =
@@ -141,16 +150,63 @@ export const notificationsAPI = {
   list: () => api.get('/api/notifications'),
   markRead: (id: string) => api.patch(`/api/notifications/${id}/read`),
   markAllRead: () => api.patch('/api/notifications/read-all'),
+  clearAll: () => api.delete('/api/notifications/clear-all'),
+};
+
+export type AnnouncementComment = {
+  id: string;
+  announcement_id: string;
+  author_role: 'ADMIN' | 'GESTIONNAIRE' | 'CLIENT';
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
+export type AnnouncementShipmentDetail = {
+  id: string;
+  status: string;
+  tracking_token: string;
+  content_description: string | null;
+  created_at: string;
+  updated_at: string;
+  weight_kg: string | number | null;
+  length_cm: string | number | null;
+  width_cm: string | number | null;
+  height_cm: string | number | null;
+  size_category: string | null;
+  pickup_address: string | null;
+  delivery_address: string | null;
+  client_name: string | null;
+  client_phone: string;
+  price_eur: number | null;
+};
+
+export type AnnouncementDetail = {
+  announcement: {
+    id: string;
+    title: string;
+    body: string;
+    author_role: 'ADMIN' | 'GESTIONNAIRE';
+    client_id: string | null;
+    shipment_id: string | null;
+    created_at: string;
+  };
+  shipment: AnnouncementShipmentDetail | null;
+  comments: AnnouncementComment[];
 };
 
 export const announcementsAPI = {
   list: () => api.get('/api/announcements'),
   create: (title: string, body: string) => api.post('/api/announcements', { title, body }),
+  detail: (id: string) => api.get<AnnouncementDetail>(`/api/announcements/${id}`),
+  addComment: (id: string, body: string) =>
+    api.post<AnnouncementComment>(`/api/announcements/${id}/comments`, { body }),
 };
 
 export const clientNotificationsAPI = {
   summary: () => api.get('/api/client-notifications'),
   markAnnouncementsSeen: () => api.patch('/api/client-notifications/mark-announcements-seen'),
+  clearAll: () => api.patch('/api/client-notifications/clear-all'),
 };
 
 export type PriceSizeTier = {
@@ -172,6 +228,20 @@ export type PricingConfig = {
 export const pricingAPI = {
   get: () => api.get<PricingConfig>('/api/pricing'),
   update: (config: PricingConfig) => api.put<PricingConfig>('/api/pricing', { config }),
+};
+
+export type ShipmentScheduleEntry = {
+  id: string;
+  shipment_date: string;
+  notes: string | null;
+  created_at: string;
+};
+
+export const shipmentScheduleAPI = {
+  list: () => api.get<ShipmentScheduleEntry[]>('/api/shipment-schedule'),
+  create: (shipmentDate: string, notes?: string) =>
+    api.post<ShipmentScheduleEntry>('/api/shipment-schedule', { shipmentDate, notes }),
+  remove: (id: string) => api.delete(`/api/shipment-schedule/${id}`),
 };
 
 export default api;

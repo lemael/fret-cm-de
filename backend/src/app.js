@@ -13,6 +13,7 @@ const notificationRoutes = require('./routes/notifications');
 const announcementRoutes = require('./routes/announcements');
 const clientNotificationRoutes = require('./routes/clientNotifications');
 const pricingRoutes = require('./routes/pricing');
+const shipmentScheduleRoutes = require('./routes/shipmentSchedule');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/client-notifications', clientNotificationRoutes);
 app.use('/api/pricing', pricingRoutes);
+app.use('/api/shipment-schedule', shipmentScheduleRoutes);
 
 // Route publique (page client)
 app.use('/api/status', statusRoutes);

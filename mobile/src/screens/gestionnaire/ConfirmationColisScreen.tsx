@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -73,6 +74,8 @@ export default function ConfirmationColisScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [issueMessages, setIssueMessages] = useState<Record<string, string>>({});
+  const [sendingIssueIds, setSendingIssueIds] = useState<Record<string, boolean>>({});
 
   const fetchParcels = useCallback(async () => {
     try {
@@ -134,6 +137,22 @@ export default function ConfirmationColisScreen() {
       'Clôturer tous les colis entièrement confirmés ? Une annonce sera publiée pour les clients.',
       handleCloseLoading
     );
+  };
+
+  const handleSendIssue = async (parcel: Parcel) => {
+    const message = (issueMessages[parcel.id] || '').trim();
+    if (!message) return;
+
+    setSendingIssueIds((prev) => ({ ...prev, [parcel.id]: true }));
+    try {
+      await shipmentsAPI.reportIssue(parcel.id, message);
+      setIssueMessages((prev) => ({ ...prev, [parcel.id]: '' }));
+      notify('Message envoyé', "Le signalement a été transmis à l'admin et au client concerné.");
+    } catch (err: any) {
+      notify('Erreur', err?.response?.data?.error || "Impossible d'envoyer le message");
+    } finally {
+      setSendingIssueIds((prev) => ({ ...prev, [parcel.id]: false }));
+    }
   };
 
   return (
@@ -206,6 +225,36 @@ export default function ConfirmationColisScreen() {
                   );
                 })
               )}
+
+              <View style={styles.issueSection}>
+                <Text style={styles.issueLabel}>
+                  Signaler un problème (envoyé à l'admin et au client concerné)
+                </Text>
+                <TextInput
+                  style={styles.issueInput}
+                  value={issueMessages[parcel.id] || ''}
+                  onChangeText={(text) =>
+                    setIssueMessages((prev) => ({ ...prev, [parcel.id]: text }))
+                  }
+                  placeholder="Décrire le problème rencontré sur cette commande..."
+                  multiline
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.issueButton,
+                    (!(issueMessages[parcel.id] || '').trim() || sendingIssueIds[parcel.id]) &&
+                      styles.buttonDisabled,
+                  ]}
+                  onPress={() => handleSendIssue(parcel)}
+                  disabled={!(issueMessages[parcel.id] || '').trim() || sendingIssueIds[parcel.id]}
+                >
+                  {sendingIssueIds[parcel.id] ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.issueButtonText}>Envoyer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           );
         })
@@ -319,5 +368,40 @@ const styles = StyleSheet.create({
     color: '#17332c',
     fontWeight: '700',
     textDecorationLine: 'line-through',
+  },
+  issueSection: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#eadfce',
+    paddingTop: 12,
+  },
+  issueLabel: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  issueInput: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  issueButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#0f4c5c',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  issueButtonText: {
+    color: '#fffaf2',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

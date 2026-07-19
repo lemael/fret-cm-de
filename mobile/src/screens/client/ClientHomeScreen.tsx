@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { ordersAPI, announcementsAPI, clientNotificationsAPI } from '../../services/api';
 import ClientNotificationBell from '../../components/ClientNotificationBell';
+import HamburgerMenu from '../../components/HamburgerMenu';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ClientHome'>;
@@ -99,9 +100,13 @@ export default function ClientHomeScreen() {
           <Text style={styles.heroTitle}>Mes commandes</Text>
           <View style={styles.heroActions}>
             <ClientNotificationBell />
-            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-              <Text style={styles.logoutText}>Déconnexion</Text>
-            </TouchableOpacity>
+            <HamburgerMenu
+              items={[
+                { label: 'Nouvelle commande', onPress: () => navigation.navigate('CreateOrder') },
+                { label: 'Grille de prix', onPress: () => navigation.navigate('PriceGrid') },
+              ]}
+              onLogout={logout}
+            />
           </View>
         </View>
 
@@ -111,23 +116,23 @@ export default function ClientHomeScreen() {
         >
           <Text style={styles.primaryActionText}>Nouvelle commande</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('PriceGrid')}>
-          <Text style={styles.navLinkText}>Grille de prix</Text>
-        </TouchableOpacity>
       </View>
 
       {announcements.length > 0 ? (
         <View style={styles.announcementsSection}>
           <Text style={styles.sectionTitle}>Annonces</Text>
           {announcements.map((announcement) => (
-            <View key={announcement.id} style={styles.announcementCard}>
+            <TouchableOpacity
+              key={announcement.id}
+              style={styles.announcementCard}
+              onPress={() => navigation.navigate('AnnouncementDetail', { announcementId: announcement.id })}
+            >
               <Text style={styles.announcementTitle}>{announcement.title}</Text>
               <Text style={styles.announcementBody}>{announcement.body}</Text>
               <Text style={styles.announcementDate}>
                 {new Date(announcement.created_at).toLocaleDateString('fr-FR')}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       ) : null}
@@ -193,19 +198,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  logoutButton: {
-    backgroundColor: 'rgba(255, 250, 242, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 250, 242, 0.25)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  logoutText: {
-    color: '#fffaf2',
-    fontWeight: '700',
-    fontSize: 13,
-  },
   primaryAction: {
     marginTop: 18,
     backgroundColor: '#b75d4b',
@@ -217,16 +209,6 @@ const styles = StyleSheet.create({
     color: '#fffaf2',
     fontSize: 15,
     fontWeight: '800',
-  },
-  navLink: {
-    marginTop: 14,
-    alignSelf: 'flex-start',
-  },
-  navLinkText: {
-    color: '#d2e0da',
-    textDecorationLine: 'underline',
-    fontSize: 13,
-    fontWeight: '700',
   },
   emptyCard: {
     marginTop: 24,

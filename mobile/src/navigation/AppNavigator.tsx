@@ -10,9 +10,11 @@ import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import ClientDetailScreen from '../screens/ClientDetailScreen';
 import AnnouncementsScreen from '../screens/AnnouncementsScreen';
+import AnnouncementDetailScreen from '../screens/AnnouncementDetailScreen';
 import IncomingOrdersScreen from '../screens/IncomingOrdersScreen';
 import DistributionScreen from '../screens/DistributionScreen';
 import PriceGridScreen from '../screens/PriceGridScreen';
+import ShipmentCalendarScreen from '../screens/ShipmentCalendarScreen';
 import ShippedHistoryScreen from '../screens/ShippedHistoryScreen';
 import SubscribedClientsScreen from '../screens/SubscribedClientsScreen';
 
@@ -52,6 +54,8 @@ export type RootStackParamList = {
   ShippedHistory: undefined;
   SubscribedClients: undefined;
   PriceGrid: undefined;
+  ShipmentCalendar: undefined;
+  AnnouncementDetail: { announcementId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -121,6 +125,11 @@ export default function AppNavigator() {
               component={PriceGridScreen}
               options={{ title: 'Grille de prix' }}
             />
+            <Stack.Screen
+              name="AnnouncementDetail"
+              component={AnnouncementDetailScreen}
+              options={{ title: 'Annonce' }}
+            />
           </>
         ) : role === 'gestionnaire' ? (
           <>
@@ -179,6 +188,16 @@ export default function AppNavigator() {
               component={PriceGridScreen}
               options={{ title: 'Grille de prix' }}
             />
+            <Stack.Screen
+              name="ShipmentCalendar"
+              component={ShipmentCalendarScreen}
+              options={{ title: 'Calendrier des envois' }}
+            />
+            <Stack.Screen
+              name="AnnouncementDetail"
+              component={AnnouncementDetailScreen}
+              options={{ title: 'Annonce' }}
+            />
           </>
         ) : (
           <>
@@ -226,6 +245,16 @@ export default function AppNavigator() {
               name="PriceGrid"
               component={PriceGridScreen}
               options={{ title: 'Grille de prix' }}
+            />
+            <Stack.Screen
+              name="ShipmentCalendar"
+              component={ShipmentCalendarScreen}
+              options={{ title: 'Calendrier des envois' }}
+            />
+            <Stack.Screen
+              name="AnnouncementDetail"
+              component={AnnouncementDetailScreen}
+              options={{ title: 'Annonce' }}
             />
           </>
         )}

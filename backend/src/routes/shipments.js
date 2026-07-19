@@ -378,6 +378,42 @@ router.patch('/:id/verified-products', requireRole('gestionnaire'), async (req, 
   }
 });
 
+// POST /api/shipments/:id/report-issue — le gestionnaire signale un problème sur une
+// commande depuis "Confirmation de colis". Le message est publié comme annonce
+// ciblée, visible par l'admin (qui voit toutes les annonces) et uniquement le
+// client concerné — pas les autres clients.
+router.post('/:id/report-issue', requireRole('gestionnaire'), async (req, res) => {
+  const { message } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Message requis' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT tracking_token, client_id FROM shipments WHERE id = $1',
+      [req.params.id]
+    );
+    const shipment = result.rows[0];
+    if (!shipment) return res.status(404).json({ error: 'Dossier introuvable' });
+
+    const orderNumber = shipment.tracking_token.slice(0, 8);
+    const sentAt = new Date().toLocaleString('fr-FR');
+
+    const announcement = await createAnnouncement({
+      title: `Problème sur la commande #${orderNumber}`,
+      body: `Commande #${orderNumber} — envoyé le ${sentAt}\n\n${message.trim()}`,
+      authorRole: 'GESTIONNAIRE',
+      clientId: shipment.client_id,
+      shipmentId: req.params.id,
+    });
+
+    res.status(201).json(announcement);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // PATCH /api/shipments/:id/distribution-status — le gestionnaire fait progresser un colis
 router.patch('/:id/distribution-status', requireRole('gestionnaire'), async (req, res) => {
   const { status } = req.body;
@@ -430,6 +466,58 @@ router.post('/close-batch', auth, async (_req, res) => {
     );
 
     res.status(201).json({ batch, packagesCount: readyResult.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/shipments/current-batch — résumé de l'envoi en cours (tableau de bord
+// gestionnaire) : date de transfert par l'admin, nombre de commandes attendues
+// (transférées et pas encore envoyées) et nombre de colis confirmés dans
+// "Confirmation de colis" (tous les produits déclarés cochés).
+router.get('/current-batch', authenticateAny, async (req, res) => {
+  if (!STAFF_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+
+  try {
+    await ensureVerifiedProductsColumn();
+    const result = await pool.query(
+      `SELECT s.content_description, s.verified_products, b.id AS batch_id, b.shipped_at
+       FROM shipment_batches b
+       JOIN shipments s ON s.batch_id = b.id AND s.status != 'COLIS_BIEN_ENVOYE'
+       ORDER BY b.shipped_at DESC`
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ shippedAt: null, expectedCount: 0, confirmedCount: 0, loadingPercent: 0 });
+    }
+
+    const currentBatchId = result.rows[0].batch_id;
+    const currentRows = result.rows.filter((row) => row.batch_id === currentBatchId);
+
+    const confirmedCount = currentRows.filter((row) => {
+      const products = (row.content_description || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      return (
+        products.length > 0 &&
+        Array.isArray(row.verified_products) &&
+        row.verified_products.length === products.length &&
+        row.verified_products.every((checked) => checked === true)
+      );
+    }).length;
+
+    const expectedCount = currentRows.length;
+
+    res.json({
+      shippedAt: currentRows[0].shipped_at,
+      expectedCount,
+      confirmedCount,
+      loadingPercent: expectedCount > 0 ? Math.round((confirmedCount / expectedCount) * 100) : 0,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });

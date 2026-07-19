@@ -10,7 +10,12 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { announcementsAPI } from '../services/api';
+import { RootStackParamList } from '../navigation/AppNavigator';
+
+type Nav = NativeStackNavigationProp<RootStackParamList, 'Announcements'>;
 
 type Announcement = {
   id: string;
@@ -26,6 +31,7 @@ const AUTHOR_LABELS: Record<Announcement['author_role'], string> = {
 };
 
 export default function AnnouncementsScreen() {
+  const navigation = useNavigation<Nav>();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,14 +135,18 @@ export default function AnnouncementsScreen() {
         <Text style={styles.emptyText}>Aucune annonce publiée.</Text>
       ) : (
         announcements.map((announcement) => (
-          <View key={announcement.id} style={styles.card}>
+          <TouchableOpacity
+            key={announcement.id}
+            style={styles.card}
+            onPress={() => navigation.navigate('AnnouncementDetail', { announcementId: announcement.id })}
+          >
             <View style={styles.cardTopRow}>
               <Text style={styles.cardTitle}>{announcement.title}</Text>
               <Text style={styles.cardAuthor}>{AUTHOR_LABELS[announcement.author_role]}</Text>
             </View>
             <Text style={styles.cardBody}>{announcement.body}</Text>
             <Text style={styles.cardDate}>{new Date(announcement.created_at).toLocaleString('fr-FR')}</Text>
-          </View>
+          </TouchableOpacity>
         ))
       )}
     </ScrollView>

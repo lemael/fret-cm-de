@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const { requireRole } = require('../middleware/auth');
+const { ensureAnnouncementsClientColumn } = require('./announcements');
 
 const router = express.Router();
 const auth = requireRole('client');
@@ -15,7 +16,7 @@ const ensureLastSeenColumn = async () => {
 // GET /api/client-notifications — fusionne messages non lus + annonces non vues
 router.get('/', auth, async (req, res) => {
   try {
-    await ensureLastSeenColumn();
+    await Promise.all([ensureLastSeenColumn(), ensureAnnouncementsClientColumn()]);
 
     const [unreadMessagesResult, clientResult] = await Promise.all([
       pool.query(
@@ -32,8 +33,10 @@ router.get('/', auth, async (req, res) => {
 
     const lastSeen = clientResult.rows[0]?.last_announcement_seen_at || new Date(0).toISOString();
     const unreadAnnouncementsResult = await pool.query(
-      'SELECT id, title, body, created_at FROM announcements WHERE created_at > $1 ORDER BY created_at DESC',
-      [lastSeen]
+      `SELECT id, title, body, created_at FROM announcements
+       WHERE created_at > $1 AND (client_id IS NULL OR client_id = $2)
+       ORDER BY created_at DESC`,
+      [lastSeen, req.client.id]
     );
 
     const messageItems = unreadMessagesResult.rows.map((row) => ({
@@ -68,6 +71,25 @@ router.get('/', auth, async (req, res) => {
 router.patch('/mark-announcements-seen', auth, async (req, res) => {
   try {
     await ensureLastSeenColumn();
+    await pool.query('UPDATE clients SET last_announcement_seen_at = NOW() WHERE id = $1', [req.client.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/client-notifications/clear-all — vide la cloche du client
+// (messages non lus + annonces) en les marquant tous comme vus.
+router.patch('/clear-all', auth, async (req, res) => {
+  try {
+    await ensureLastSeenColumn();
+    await pool.query(
+      `UPDATE messages m SET is_read = TRUE
+       FROM shipments s
+       WHERE m.shipment_id = s.id AND s.client_id = $1 AND m.sender_role != 'CLIENT' AND m.is_read = FALSE`,
+      [req.client.id]
+    );
     await pool.query('UPDATE clients SET last_announcement_seen_at = NOW() WHERE id = $1', [req.client.id]);
     res.json({ success: true });
   } catch (err) {

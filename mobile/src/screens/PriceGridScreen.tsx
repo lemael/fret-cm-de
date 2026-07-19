@@ -62,35 +62,6 @@ const CartonDiagram = () => (
   </View>
 );
 
-// Cube 1m x 1m x 1m — illustre le seuil "1 m³" du palier volumétrique.
-const CubeDiagram = () => (
-  <View style={styles.diagramWrap}>
-    <View style={styles.diagramRow}>
-      <View style={styles.cube}>
-        <View style={styles.cartonFlap} />
-        <View style={styles.cartonTape} />
-      </View>
-
-      <View style={[styles.shortSideBracket, styles.cubeShortSideBracket]}>
-        <View style={styles.bracketTick} />
-        <View style={styles.bracketLineVertical} />
-        <View style={styles.bracketTick} />
-      </View>
-      <Text style={[styles.diagramLabel, styles.shortSideLabel]}>1 mètre</Text>
-    </View>
-
-    <View style={styles.cubeLongSideBracket}>
-      <View style={styles.bracketTickHorizontal} />
-      <View style={styles.bracketLineHorizontal} />
-      <View style={styles.bracketTickHorizontal} />
-    </View>
-    <Text style={styles.diagramLabel}>1 mètre</Text>
-    <Text style={styles.diagramCaption}>
-      Toutes les faces du carton mesurent 1 mètre (1 m³).
-    </Text>
-  </View>
-);
-
 const parseNumber = (value: string) => Number(value.replace(',', '.'));
 
 const computeDiscountedPrice = (tier: { priceEur: string; bulkDiscountEur: string }) => {
@@ -179,12 +150,6 @@ export default function PriceGridScreen() {
       const bulkKgTiers = current.bulkKgTiers.map((tier, i) => (i === index ? { ...tier, [field]: value } : tier));
       return { ...current, bulkKgTiers };
     });
-  };
-
-  const updateVolumetric = (field: 'minVolumeM3' | 'maxWeightKg' | 'priceEur', value: string) => {
-    setEditable((current) =>
-      current ? { ...current, volumetricBracket: { ...current.volumetricBracket, [field]: value } } : current
-    );
   };
 
   const handleSave = async () => {
@@ -367,59 +332,6 @@ export default function PriceGridScreen() {
         ))}
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Palier volumétrique</Text>
-        <Text style={styles.sectionHelp}>
-          Prix forfaitaire pour un envoi volumineux mais léger.
-        </Text>
-
-        <CubeDiagram />
-
-        <View style={styles.tierCard}>
-          <View style={styles.fieldRow}>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Volume min (m³)</Text>
-              {isAdmin ? (
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={editable.volumetricBracket.minVolumeM3}
-                  onChangeText={(v) => updateVolumetric('minVolumeM3', v)}
-                />
-              ) : (
-                <Text style={styles.readOnlyValue}>{editable.volumetricBracket.minVolumeM3} m³</Text>
-              )}
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Poids max (kg)</Text>
-              {isAdmin ? (
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={editable.volumetricBracket.maxWeightKg}
-                  onChangeText={(v) => updateVolumetric('maxWeightKg', v)}
-                />
-              ) : (
-                <Text style={styles.readOnlyValue}>{editable.volumetricBracket.maxWeightKg} kg</Text>
-              )}
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Prix</Text>
-              {isAdmin ? (
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={editable.volumetricBracket.priceEur}
-                  onChangeText={(v) => updateVolumetric('priceEur', v)}
-                />
-              ) : (
-                <Text style={styles.readOnlyValue}>{editable.volumetricBracket.priceEur} €</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </View>
-
       {isAdmin ? (
         <TouchableOpacity
           style={[styles.saveButton, saving && styles.buttonDisabled]}
@@ -499,30 +411,6 @@ const styles = StyleSheet.create({
     width: 14,
     marginLeft: -7,
     backgroundColor: '#c99a63',
-  },
-  cube: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#d8b48a',
-    borderWidth: 2,
-    borderColor: '#8a5a2b',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  cubeShortSideBracket: {
-    height: 100,
-  },
-  cubeLongSideBracket: {
-    width: 100,
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  diagramCaption: {
-    marginTop: 10,
-    color: '#5f6a65',
-    fontSize: 12,
-    textAlign: 'center',
   },
   shortSideBracket: {
     marginLeft: 10,

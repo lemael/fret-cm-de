@@ -316,6 +316,9 @@ export default function CreateOrderScreen() {
             • {item}
           </Text>
         ))}
+        <Text style={styles.forbiddenWarning}>
+          Tout colis interdit qui entre au magasin est confisqué.
+        </Text>
       </View>
 
       <Modal
@@ -501,6 +504,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 4,
+  },
+  forbiddenWarning: {
+    marginTop: 8,
+    color: '#991b1b',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,

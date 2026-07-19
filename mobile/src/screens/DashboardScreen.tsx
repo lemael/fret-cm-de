@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { shipmentsAPI } from '../services/api';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import NotificationBell from '../components/NotificationBell';
+import HamburgerMenu from '../components/HamburgerMenu';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -79,31 +79,19 @@ export default function DashboardScreen() {
           </View>
           <View style={styles.heroActions}>
             <NotificationBell />
-            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-              <Text style={styles.logoutText}>Deconnexion</Text>
-            </TouchableOpacity>
+            <HamburgerMenu
+              items={[
+                { label: 'Réception des commandes', onPress: () => navigation.navigate('IncomingOrders') },
+                { label: 'Arrivée des colis', onPress: () => navigation.navigate('Distribution') },
+                { label: "Historique d'envoi de colis", onPress: () => navigation.navigate('ShippedHistory') },
+                { label: 'Clients abonnés', onPress: () => navigation.navigate('SubscribedClients') },
+                { label: 'Voir les annonces', onPress: () => navigation.navigate('Announcements') },
+                { label: 'Grille de prix', onPress: () => navigation.navigate('PriceGrid') },
+                { label: 'Calendrier des envois', onPress: () => navigation.navigate('ShipmentCalendar') },
+              ]}
+              onLogout={logout}
+            />
           </View>
-        </View>
-
-        <View style={styles.navLinksRow}>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('IncomingOrders')}>
-            <Text style={styles.navLinkText}>Réception des commandes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Distribution')}>
-            <Text style={styles.navLinkText}>Arrivée des colis</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('ShippedHistory')}>
-            <Text style={styles.navLinkText}>Historique d'envoi de colis</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('SubscribedClients')}>
-            <Text style={styles.navLinkText}>Clients abonnés</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Announcements')}>
-            <Text style={styles.navLinkText}>Voir les annonces</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('PriceGrid')}>
-            <Text style={styles.navLinkText}>Grille de prix</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -179,34 +167,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  logoutButton: {
-    backgroundColor: 'rgba(255, 250, 242, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 250, 242, 0.25)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  logoutText: {
-    color: '#fffaf2',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  navLinksRow: {
-    marginTop: 18,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  navLink: {
-    alignSelf: 'flex-start',
-  },
-  navLinkText: {
-    color: '#d2e0da',
-    textDecorationLine: 'underline',
-    fontSize: 13,
-    fontWeight: '700',
   },
   panel: {
     marginTop: 16,

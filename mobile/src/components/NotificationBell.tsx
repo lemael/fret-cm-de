@@ -68,6 +68,12 @@ export default function NotificationBell() {
     }
   };
 
+  const handleClearAll = async () => {
+    await notificationsAPI.clearAll();
+    setNotifications([]);
+    setUnreadCount(0);
+  };
+
   return (
     <>
       <TouchableOpacity style={styles.bellButton} onPress={openPanel}>
@@ -84,9 +90,16 @@ export default function NotificationBell() {
           <View style={styles.panel} onStartShouldSetResponder={() => true}>
             <View style={styles.panelHeader}>
               <Text style={styles.panelTitle}>Notifications</Text>
-              <TouchableOpacity onPress={() => setVisible(false)}>
-                <Text style={styles.closeText}>Fermer</Text>
-              </TouchableOpacity>
+              <View style={styles.panelHeaderActions}>
+                {notifications.length > 0 ? (
+                  <TouchableOpacity onPress={handleClearAll}>
+                    <Text style={styles.clearText}>Vider</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={() => setVisible(false)}>
+                  <Text style={styles.closeText}>Fermer</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {loading ? (
@@ -175,8 +188,18 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
   },
+  panelHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
   closeText: {
     color: '#5f6a65',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  clearText: {
+    color: '#b75d4b',
     fontSize: 13,
     fontWeight: '700',
   },

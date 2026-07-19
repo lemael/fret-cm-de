@@ -14,8 +14,15 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../../context/AuthContext';
-import { financeAPI } from '../../services/api';
+import {
+  financeAPI,
+  shipmentsAPI,
+  shipmentScheduleAPI,
+  CurrentBatchSummary,
+  ShipmentScheduleEntry,
+} from '../../services/api';
 import NotificationBell from '../../components/NotificationBell';
+import HamburgerMenu from '../../components/HamburgerMenu';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'FinanceDashboard'>;
@@ -44,6 +51,36 @@ const TYPE_LABELS: Record<string, string> = {
 
 const formatAmount = (value: string | number) => `${Number(value).toLocaleString('fr-FR')} FCFA`;
 
+const formatShipDate = (value: string | null) => {
+  if (!value) return 'Aucun envoi en cours';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Nombre de jours avant lesquels la prochaine date du calendrier remplit
+// automatiquement le champ "Date d'envoi" du dashboard gestionnaire.
+const AUTO_FILL_WINDOW_DAYS = 28;
+
+const daysUntil = (value: string) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(value);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+const nextScheduledEntry = (entries: ShipmentScheduleEntry[]) =>
+  entries
+    .filter((entry) => daysUntil(entry.shipment_date) >= 0)
+    .sort((a, b) => new Date(a.shipment_date).getTime() - new Date(b.shipment_date).getTime())[0] || null;
+
+// Masqué temporairement — à réactiver quand la saisie manuelle de transaction sera prête.
+const SHOW_ADD_TRANSACTION_BUTTON = false;
+// Masqué temporairement — à réactiver quand le suivi financier sera prêt.
+const SHOW_FINANCE_METRICS = false;
+const SHOW_RECENT_TRANSACTIONS = false;
+
 export default function FinanceDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { logout } = useAuth();
@@ -51,6 +88,9 @@ export default function FinanceDashboardScreen() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentBatch, setCurrentBatch] = useState<CurrentBatchSummary | null>(null);
+  const [batchLoading, setBatchLoading] = useState(true);
+  const [scheduleEntries, setScheduleEntries] = useState<ShipmentScheduleEntry[]>([]);
   const [formVisible, setFormVisible] = useState(false);
   const [amount, setAmount] = useState('');
   const [commissionAmount, setCommissionAmount] = useState('');
@@ -72,14 +112,43 @@ export default function FinanceDashboardScreen() {
     }
   }, []);
 
+  const fetchCurrentBatch = useCallback(async () => {
+    try {
+      const res = await shipmentsAPI.currentBatch();
+      setCurrentBatch(res.data);
+    } catch {
+      setCurrentBatch(null);
+    } finally {
+      setBatchLoading(false);
+    }
+  }, []);
+
+  const fetchSchedule = useCallback(async () => {
+    try {
+      const res = await shipmentScheduleAPI.list();
+      setScheduleEntries(res.data);
+    } catch {
+      setScheduleEntries([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOverview();
-  }, [fetchOverview]);
+    fetchCurrentBatch();
+    fetchSchedule();
+  }, [fetchOverview, fetchCurrentBatch, fetchSchedule]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchOverview();
+    fetchCurrentBatch();
+    fetchSchedule();
   };
+
+  const nextScheduled = nextScheduledEntry(scheduleEntries);
+  const nextScheduledInWindow =
+    nextScheduled !== null && daysUntil(nextScheduled.shipment_date) <= AUTO_FILL_WINDOW_DAYS;
+  const displayedShipDate = nextScheduledInWindow ? nextScheduled!.shipment_date : currentBatch?.shippedAt ?? null;
 
   const handleAddTransaction = async () => {
     const parsedAmount = Number(amount.replace(',', '.'));
@@ -118,68 +187,85 @@ export default function FinanceDashboardScreen() {
           <Text style={styles.heroTitle}>Flux financiers</Text>
           <View style={styles.heroActions}>
             <NotificationBell />
-            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-              <Text style={styles.logoutText}>Déconnexion</Text>
-            </TouchableOpacity>
+            <HamburgerMenu
+              items={[
+                { label: 'Voir les litiges', onPress: () => navigation.navigate('Disputes') },
+                { label: 'Voir les messages', onPress: () => navigation.navigate('MessagesInbox') },
+                // "Chargement des colis" masqué temporairement.
+                { label: 'Confirmation de colis', onPress: () => navigation.navigate('ConfirmationColis') },
+                { label: "Historique d'envoi de colis", onPress: () => navigation.navigate('ShippedHistory') },
+                { label: 'Clients abonnés', onPress: () => navigation.navigate('SubscribedClients') },
+                { label: 'Voir les annonces', onPress: () => navigation.navigate('Announcements') },
+                { label: 'Grille de prix', onPress: () => navigation.navigate('PriceGrid') },
+                { label: 'Calendrier des envois', onPress: () => navigation.navigate('ShipmentCalendar') },
+              ]}
+              onLogout={logout}
+            />
           </View>
         </View>
 
-        {loading ? (
+        {SHOW_FINANCE_METRICS ? (
+          loading ? (
+            <ActivityIndicator size="large" color="#fff" style={{ marginTop: 20 }} />
+          ) : (
+            <View style={styles.metricsRow}>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricValue}>{formatAmount(totals?.total_collected || 0)}</Text>
+                <Text style={styles.metricLabel}>Collecté</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricValue}>{formatAmount(totals?.total_commission || 0)}</Text>
+                <Text style={styles.metricLabel}>Commissions</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricValue}>{formatAmount(totals?.total_reversed || 0)}</Text>
+                <Text style={styles.metricLabel}>Reversé</Text>
+              </View>
+            </View>
+          )
+        ) : null}
+
+        {batchLoading ? (
           <ActivityIndicator size="large" color="#fff" style={{ marginTop: 20 }} />
         ) : (
-          <View style={styles.metricsRow}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{formatAmount(totals?.total_collected || 0)}</Text>
-              <Text style={styles.metricLabel}>Collecté</Text>
+          <>
+            <View style={styles.metricsRow}>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricValue}>{formatShipDate(displayedShipDate)}</Text>
+                <Text style={styles.metricLabel}>
+                  Date d'envoi{nextScheduledInWindow ? ' (calendrier)' : ''}
+                </Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricValue}>{currentBatch?.loadingPercent ?? 0}%</Text>
+                <Text style={styles.metricLabel}>Chargement conteneur</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricValue}>{currentBatch?.expectedCount ?? 0}</Text>
+                <Text style={styles.metricLabel}>Commandes attendues</Text>
+              </View>
             </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{formatAmount(totals?.total_commission || 0)}</Text>
-              <Text style={styles.metricLabel}>Commissions</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{formatAmount(totals?.total_reversed || 0)}</Text>
-              <Text style={styles.metricLabel}>Reversé</Text>
-            </View>
-          </View>
+            {currentBatch && currentBatch.expectedCount > 0 ? (
+              <Text style={styles.batchHelp}>
+                {currentBatch.confirmedCount} / {currentBatch.expectedCount} colis confirmés dans
+                "Confirmation de colis".
+              </Text>
+            ) : null}
+          </>
         )}
-
-        <View style={styles.navRow}>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Disputes')}>
-            <Text style={styles.navLinkText}>Voir les litiges</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('MessagesInbox')}>
-            <Text style={styles.navLinkText}>Voir les messages</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Distribution')}>
-            <Text style={styles.navLinkText}>Chargement des colis</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('ConfirmationColis')}>
-            <Text style={styles.navLinkText}>Confirmation de colis</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('ShippedHistory')}>
-            <Text style={styles.navLinkText}>Historique d'envoi de colis</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('SubscribedClients')}>
-            <Text style={styles.navLinkText}>Clients abonnés</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('Announcements')}>
-            <Text style={styles.navLinkText}>Voir les annonces</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navLink} onPress={() => navigation.navigate('PriceGrid')}>
-            <Text style={styles.navLinkText}>Grille de prix</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.panel}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setFormVisible((visible) => !visible)}
-        >
-          <Text style={styles.addButtonText}>
-            {formVisible ? 'Annuler' : 'Ajouter une transaction'}
-          </Text>
-        </TouchableOpacity>
+        {SHOW_ADD_TRANSACTION_BUTTON ? (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setFormVisible((visible) => !visible)}
+          >
+            <Text style={styles.addButtonText}>
+              {formVisible ? 'Annuler' : 'Ajouter une transaction'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         {formVisible ? (
           <View style={styles.formCard}>
@@ -232,24 +318,28 @@ export default function FinanceDashboardScreen() {
           </View>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Transactions récentes</Text>
-        {transactions.length === 0 ? (
-          <Text style={styles.emptyText}>Aucune transaction enregistrée.</Text>
-        ) : (
-          transactions.map((tx) => (
-            <View key={tx.id} style={styles.txCard}>
-              <View style={styles.txTopRow}>
-                <Text style={styles.txType}>{TYPE_LABELS[tx.type] || tx.type}</Text>
-                <Text style={styles.txAmount}>{formatAmount(tx.amount)}</Text>
-              </View>
-              {Number(tx.commission_amount) > 0 ? (
-                <Text style={styles.txCommission}>Commission: {formatAmount(tx.commission_amount)}</Text>
-              ) : null}
-              {tx.notes ? <Text style={styles.txNotes}>{tx.notes}</Text> : null}
-              <Text style={styles.txDate}>{new Date(tx.created_at).toLocaleDateString('fr-FR')}</Text>
-            </View>
-          ))
-        )}
+        {SHOW_RECENT_TRANSACTIONS ? (
+          <>
+            <Text style={styles.sectionTitle}>Transactions récentes</Text>
+            {transactions.length === 0 ? (
+              <Text style={styles.emptyText}>Aucune transaction enregistrée.</Text>
+            ) : (
+              transactions.map((tx) => (
+                <View key={tx.id} style={styles.txCard}>
+                  <View style={styles.txTopRow}>
+                    <Text style={styles.txType}>{TYPE_LABELS[tx.type] || tx.type}</Text>
+                    <Text style={styles.txAmount}>{formatAmount(tx.amount)}</Text>
+                  </View>
+                  {Number(tx.commission_amount) > 0 ? (
+                    <Text style={styles.txCommission}>Commission: {formatAmount(tx.commission_amount)}</Text>
+                  ) : null}
+                  {tx.notes ? <Text style={styles.txNotes}>{tx.notes}</Text> : null}
+                  <Text style={styles.txDate}>{new Date(tx.created_at).toLocaleDateString('fr-FR')}</Text>
+                </View>
+              ))
+            )}
+          </>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -281,19 +371,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  logoutButton: {
-    backgroundColor: 'rgba(255, 250, 242, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 250, 242, 0.25)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  logoutText: {
-    color: '#fffaf2',
-    fontWeight: '700',
-    fontSize: 13,
-  },
   metricsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -315,18 +392,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  navRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 16,
-  },
-  navLink: {
-    alignSelf: 'flex-start',
-  },
-  navLinkText: {
-    color: '#dbeafe',
-    textDecorationLine: 'underline',
-    fontSize: 13,
+  batchHelp: {
+    marginTop: 12,
+    color: '#d7eef3',
+    fontSize: 12,
   },
   panel: {
     marginTop: 16,

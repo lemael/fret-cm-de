@@ -53,6 +53,18 @@ router.patch('/read-all', auth, async (_req, res) => {
   }
 });
 
+// DELETE /api/notifications/clear-all — vide la cloche admin + gestionnaire
+router.delete('/clear-all', auth, async (_req, res) => {
+  try {
+    await ensureNotificationsTable();
+    await pool.query('DELETE FROM notifications');
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // PATCH /api/notifications/:id/read
 router.patch('/:id/read', auth, async (req, res) => {
   try {
